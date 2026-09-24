@@ -14,13 +14,15 @@ function ccForCountry(country: string): string {
 function genPassportId(country: string): string {
   const cc = ccForCountry(country);
   const yyyy = new Date().getFullYear().toString();
-  const xxxx = Math.random().toString(36).substring(2, 6).toUpperCase().padEnd(4, '0').slice(0, 4);
-  // ensure hex-ish but allow A-Z0-9; use alphanumeric
+  // Use crypto for better entropy (fallback to Math.random if unavailable)
+  const rnd = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID().replace(/-/g,'').substring(0,4).toUpperCase() : Math.random().toString(36).substring(2,6).toUpperCase().padEnd(4,'0');
+  const xxxx = rnd.slice(0,4).padEnd(4,'0');
   return `PTQ-${cc}-${yyyy}-${xxxx}`;
 }
 
 function genSlug(): string {
-  return Math.random().toString(36).substring(2, 10).toUpperCase();
+  const rnd = typeof crypto !== 'undefined' && (crypto as any).randomUUID ? (crypto as any).randomUUID().replace(/-/g,'').substring(0,8).toUpperCase() : Math.random().toString(36).substring(2,10).toUpperCase();
+  return rnd.slice(0,8);
 }
 
 export async function GET() {
