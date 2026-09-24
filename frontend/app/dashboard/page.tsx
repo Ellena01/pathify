@@ -123,8 +123,8 @@ export default function PathifyDashboard() {
         if (profile) {
           hydrate({
             name: profile.name, role: profile.role, country: profile.country,
-            skills: profile.skills, goals: profile.goals, setProfile: () => {}, setAll: () => {},
-          } as any);
+            skills: profile.skills, goals: profile.goals,
+          });
         }
         const { data: saves } = await supabase.from('saved_jobs').select('job_url').eq('user_id', session.user.id);
         if (saves) setSavedJobs(saves.map((r: any) => r.job_url));
