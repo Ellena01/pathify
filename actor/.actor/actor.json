@@ -1,0 +1,90 @@
+{
+  "actorSpecification": 1,
+  "name": "pathify-intelligence-engine",
+  "title": "Pathify Intelligence Engine — Multi-Vertical Opportunity Scraper",
+  "description": "MVP 5 sources: YC Jobs, Work at a Startup, Devpost (hackathons), Opportunity Desk (fellowships/grants/scholarships), Eventbrite (conferences/events). Extracts opportunities across jobs (remote/hybrid/onsite), internships, conferences, fellowships, events, startup funding/grants, scholarships & hackathons. Enriches with hybrid skill extraction (taxonomy + embedding/LLM fallback) and weighted match scoring. Dataset → Supabase cache → Pathify frontend.",
+  "meta": {
+    "templateId": "python-beautifulsoup",
+    "seoTitle": "Pathify Multi-Source Opportunity Actor",
+    "seoDescription": "Production actor for Pathify — aggregates all opportunity verticals with intelligence layer."
+  },
+  "input": {
+    "title": "Pathify Search Config",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+      "startUrls": {
+        "title": "Start URLs",
+        "type": "array",
+        "description": "Seed URLs to crawl. Leave empty to use defaults for selected opportunity types (MVP 5).",
+        "prefill": [{ "url": "https://www.ycombinator.com/jobs" }],
+        "editor": "requestListSources"
+      },
+      "opportunityTypes": {
+        "title": "Opportunity Types",
+        "type": "array",
+        "description": "Filter which verticals to scrape. If empty, scrapes all MVP 5.",
+        "prefill": ["jobs_remote", "jobs_hybrid", "jobs_onsite", "internships", "conferences", "fellowships", "events", "startup_funding", "grants", "scholarships", "hackathons"],
+        "editor": "stringList",
+        "enum": ["jobs_remote", "jobs_hybrid", "jobs_onsite", "internships", "conferences", "fellowships", "events", "startup_funding", "grants", "scholarships", "hackathons"]
+      },
+      "userSkills": {
+        "title": "User Skills",
+        "type": "array",
+        "description": "Skills to score matches against (e.g., React, Python). Used for match_score/matched_skills/skill_gap.",
+        "prefill": ["React", "TypeScript", "Python", "Next.js"],
+        "editor": "stringList"
+      },
+      "userName": {
+        "title": "User Name",
+        "type": "string",
+        "description": "For logging / personalization.",
+        "prefill": "Helen"
+      },
+      "location": {
+        "title": "Location Filter",
+        "type": "string",
+        "description": "Free-text location hint (e.g., 'Lagos', 'Global / Remote'). Stored on records, not yet filtering crawl.",
+        "prefill": "Global / Remote"
+      },
+      "maxItems": {
+        "title": "Max Items",
+        "type": "integer",
+        "description": "Max unique opportunities to extract (1-500).",
+        "prefill": 50,
+        "minimum": 1,
+        "maximum": 500
+      },
+      "proxyConfiguration": {
+        "title": "Proxy Configuration",
+        "type": "object",
+        "description": "Apify Proxy to avoid blocking. Recommended useApifyProxy:true.",
+        "prefill": { "useApifyProxy": true },
+        "editor": "proxy"
+      },
+      "useLLM": {
+        "title": "Enable LLM Fallback (Best)",
+        "type": "boolean",
+        "description": "When true, low-confidence items call Gemini/OpenAI for skill extraction. Uses API key from env LLM_API_KEY. Costs apply; cached by description hash.",
+        "prefill": false
+      },
+      "enqueueLinks": {
+        "title": "Follow Pagination/Links",
+        "type": "boolean",
+        "description": "If true, enqueues detail pages and pagination via Crawlee. Disable for single-page fast runs.",
+        "prefill": true
+      }
+    },
+    "required": ["startUrls"]
+  },
+  "defaultView": "dataset",
+  "views": {
+    "dataset": {
+      "title": "Dataset",
+      "transformation": {
+        "title": "Pathify View",
+        "fields": ["title", "organization", "location", "opportunity_type", "application_url", "skills_required", "verification_status", "discovered_at", "match_score", "source_domain"]
+      }
+    }
+  }
+}
