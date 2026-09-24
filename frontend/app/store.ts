@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-interface UserProfile {
+export interface UserProfile {
   id?: string;
   name: string;
   role: string;
@@ -11,11 +11,16 @@ interface UserProfile {
   passport_share_slug?: string | null;
   is_passport_public?: boolean;
   passport_issued_at?: string | null;
+}
+
+interface UserStore extends UserProfile {
   setProfile: (profile: Partial<UserProfile>) => void;
+  hydrate: (profile: UserProfile) => void;
+  // deprecated alias for hydrate
   setAll: (profile: UserProfile) => void;
 }
 
-export const useUserStore = create<UserProfile>((set) => ({
+export const useUserStore = create<UserStore>((set) => ({
   name: "Ada",
   role: "Software Engineer",
   country: "Nigeria",
@@ -26,5 +31,6 @@ export const useUserStore = create<UserProfile>((set) => ({
   is_passport_public: false,
   passport_issued_at: null,
   setProfile: (profile) => set((state) => ({ ...state, ...profile })),
-  setAll: (profile) => set(profile),
+  hydrate: (profile) => set({ ...profile }),
+  setAll: (profile) => set({ ...profile }),
 }));

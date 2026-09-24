@@ -83,7 +83,7 @@ export default function PathifyDashboard() {
   const [navLoading, setNavLoading] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const { name, role, skills: userSkills, setProfile, setAll, country, passport_id } = useUserStore();
+  const { name, role, skills: userSkills, setProfile, hydrate, country, passport_id } = useUserStore();
   const supabase = createClient();
 
   // Auth + profile + saved jobs hydration
@@ -96,15 +96,13 @@ export default function PathifyDashboard() {
           // Load profile
           const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', user.id).single();
           if (profile) {
-            setAll({
+            hydrate({
               name: profile.name || user.user_metadata?.name || user.email?.split('@')[0] || 'Ada',
               role: profile.role || 'Software Engineer',
               country: profile.country || 'Nigeria',
               skills: profile.skills || ["React", "TypeScript", "Next.js"],
               goals: profile.goals || ["Remote Job", "Fellowship"],
-              setProfile: () => {},
-              setAll: () => {},
-            } as any);
+            });
           }
           // Load saved jobs
           const { data: saves } = await supabase.from('saved_jobs').select('job_url').eq('user_id', user.id);
@@ -123,7 +121,7 @@ export default function PathifyDashboard() {
       if (session?.user) {
         const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single();
         if (profile) {
-          setAll({
+          hydrate({
             name: profile.name, role: profile.role, country: profile.country,
             skills: profile.skills, goals: profile.goals, setProfile: () => {}, setAll: () => {},
           } as any);
@@ -143,7 +141,7 @@ export default function PathifyDashboard() {
     fetch('/api/passport').then(r => r.json()).then(d => {
       if (!d.error) {
         setPassport(d);
-        setAll({ name: d.name, role: d.role, country: d.country, skills: d.skills, goals: d.goals, passport_id: d.passport_id, passport_share_slug: d.passport_share_slug, is_passport_public: d.is_passport_public, passport_issued_at: d.passport_issued_at, setProfile: () => {}, setAll: () => {} } as any);
+        hydrate({ name: d.name, role: d.role, country: d.country, skills: d.skills, goals: d.goals, passport_id: d.passport_id, passport_share_slug: d.passport_share_slug, is_passport_public: d.is_passport_public, passport_issued_at: d.passport_issued_at } );
       }
     }).catch(() => {});
     // Alerts — use async IIFE to avoid PromiseLike catch issue
