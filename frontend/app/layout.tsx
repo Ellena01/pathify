@@ -28,9 +28,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased overflow-x-hidden`}
+      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
-      <body className="min-h-screen flex flex-col overflow-x-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' } as any}>{children}</body>
+      <body className="min-h-screen flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' } as any}>{children}</body>
     </html>
   );
 }

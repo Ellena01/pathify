@@ -18,7 +18,6 @@
 /* Mobile & premium dark fixes */
 html {
   -webkit-text-size-adjust: 100%;
-  overflow-x: hidden;
   scroll-behavior: smooth;
 }
 * { -webkit-tap-highlight-color: transparent; }
@@ -26,8 +25,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
-  overflow-x: hidden;
-  overscroll-behavior-y: contain;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
 /* Prevent iOS zoom on focus — 16px on mobile */

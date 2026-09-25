@@ -16,7 +16,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#080414] bg-[radial-gradient(ellipse_at_top,_#3b107c4D_0%,_#080414_50%,_#04020a_100%)] text-[#F5F5F7] selection:bg-[#8B5CF6]/30 overflow-x-hidden">
+    <div className="min-h-screen bg-[#080414] bg-[radial-gradient(ellipse_at_top,_#3b107c4D_0%,_#080414_50%,_#04020a_100%)] text-[#F5F5F7] selection:bg-[#8B5CF6]/30">
       {/* Header — selective glass, mobile collapse */}
       <header className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#080414]/70 backdrop-blur-xl" style={{ paddingTop: 'env(safe-area-inset-top)' } as any}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[64px] sm:min-h-[72px] flex items-center justify-between gap-4">
