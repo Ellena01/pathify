@@ -42,9 +42,9 @@ export default function SignupPage() {
       setErrorMsg(msg);
       return;
     }
-    // If email confirmations disabled, Supabase returns a session immediately — auto-login
+    // If email confirmations disabled, Supabase returns a session immediately — route to onboarding
     if (data.session) {
-      router.push('/dashboard');
+      router.push('/onboarding');
       router.refresh();
       return;
     }

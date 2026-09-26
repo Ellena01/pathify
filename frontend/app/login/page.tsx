@@ -27,6 +27,23 @@ export default function LoginPage() {
       setErrorMsg(msg);
       return;
     }
+
+    // Check onboarding completion
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('onboarding_completed')
+        .eq('id', user.id)
+        .single();
+
+      if (profile && !profile.onboarding_completed) {
+        router.push('/onboarding');
+        router.refresh();
+        return;
+      }
+    }
+
     router.push('/dashboard');
     router.refresh();
   };

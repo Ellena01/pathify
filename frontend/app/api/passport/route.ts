@@ -30,18 +30,39 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-  const { data, error } = await supabase.from('user_profiles').select('id, name, role, country, skills, goals, passport_id, passport_share_slug, is_passport_public, passport_issued_at').eq('id', user.id).single();
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, name, role, country, skills, goals, passport_id, passport_share_slug, is_passport_public, passport_issued_at, onboarding_completed, metadata')
+    .eq('id', user.id)
+    .single();
+
   if (error) {
-    // Fallback if columns missing (migration not run) — generate on fly
-    if (error.message.includes('passport_id') || error.message.includes('column')) {
-      return NextResponse.json({ error: 'Passport not migrated yet. Please run supabase/migrations/20260924_passport_org_alerts_navigator.sql in SQL Editor.', details: error.message }, { status: 503 });
+    // Fallback if extended columns missing (migration not run) — select standard columns
+    if (error.message.includes('metadata') || error.message.includes('onboarding_completed') || error.message.includes('column')) {
+      const { data: stdData, error: stdErr } = await supabase
+        .from('user_profiles')
+        .select('id, name, role, country, skills, goals, passport_id, passport_share_slug, is_passport_public, passport_issued_at')
+        .eq('id', user.id)
+        .single();
+      if (stdErr) return NextResponse.json({ error: stdErr.message }, { status: 500 });
+      return NextResponse.json({
+        ...stdData,
+        onboarding_completed: false,
+        metadata: {},
+      });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
   // If no passport_id yet (old row before trigger), generate now
   if (!data.passport_id) {
     const newId = genPassportId(data.country || 'XX');
-    const { data: upd, error: upErr } = await supabase.from('user_profiles').update({ passport_id: newId, passport_issued_at: new Date().toISOString() }).eq('id', user.id).select('passport_id, passport_share_slug, is_passport_public, passport_issued_at').single();
+    const { data: upd, error: upErr } = await supabase
+      .from('user_profiles')
+      .update({ passport_id: newId, passport_issued_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .select('passport_id, passport_share_slug, is_passport_public, passport_issued_at')
+      .single();
     if (!upErr && upd) return NextResponse.json({ ...data, passport_id: upd.passport_id, passport_share_slug: upd.passport_share_slug, is_passport_public: upd.is_passport_public, passport_issued_at: upd.passport_issued_at });
   }
   return NextResponse.json(data);
