@@ -94,7 +94,7 @@ export interface CategoryBreakdown {
 }
 
 export interface MatchResult {
-  /** 0–100. */
+  /** 0-100. */
   score: number;
   matched: string[];
   gap: string[];
@@ -105,6 +105,59 @@ export interface MatchResult {
   /** One line per factor, for the "Why you match" panel. */
   reasons: string[];
 }
+
+/**
+ * Rebuild a `MatchResult` from a persisted `user_opportunity_matches` row.
+ *
+ * `POST /api/match` stores `score`, `matched_skills`, `skill_gap`, `breakdown`
+ * and `explanation` — but NOT `byCategory` or `reasons`. Reconstructing the
+ * result by hand therefore invites two failure modes: forgetting a field (a
+ * TypeScript error, so at least loud) or inventing a plausible value for one
+ * that was never stored (silent, and wrong).
+ *
+ * So the two absent fields are filled with the honest empty value rather than a
+ * guess. This is the single definition, used by both the detail page and
+ * `GET /api/opportunities/[id]`, so a persisted match renders identically
+ * wherever it is shown.
+ */
+export function matchResultFromStored(row: {
+  score?: unknown;
+  matched_skills?: unknown;
+  skill_gap?: unknown;
+  breakdown?: unknown;
+  explanation?: unknown;
+}): MatchResult {
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+
+  const breakdown = (row.breakdown ?? {}) as MatchBreakdown;
+
+  return {
+    score: typeof row.score === 'number' && Number.isFinite(row.score)
+      ? Math.max(0, Math.min(100, Math.round(row.score)))
+      : 0,
+    matched: strings(row.matched_skills),
+    gap: strings(row.skill_gap),
+    breakdown: {
+      skills: numberOr(breakdown?.skills, 60),
+      location: numberOr(breakdown?.location, 20),
+      goals: numberOr(breakdown?.goals, 10),
+      experience: numberOr(breakdown?.experience, 10),
+    },
+    // Never persisted. An empty object is the honest value; a synthesised
+    // breakdown would render as if it had been computed.
+    byCategory: {},
+    explanation: typeof row.explanation === 'string' ? row.explanation : '',
+    // Never persisted either — the digest and the detail panel derive their own
+    // copy from the breakdown.
+    reasons: [],
+  };
+}
+
+function numberOr(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
 
 export interface MatchSubject {
   skills?: readonly string[] | null;

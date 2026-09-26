@@ -20,6 +20,7 @@ import {
   scoreLocation,
   scoreSkills,
   extractRequiredSkills,
+  matchResultFromStored,
   SCORE_WEIGHTS,
 } from '../lib/matching';
 import { canonicalizeSkillList, normalizeSkill, resolveSkills } from '../lib/taxonomy';
@@ -282,4 +283,68 @@ test('a high-skill match with wrong location still beats a low-skill remote matc
     { skills: ['Python', 'React'], country: 'Nigeria', goals: ['Remote Job'] }
   );
   assert.ok(skillsStrong.score > remoteWeak.score);
+});
+// ---------------------------------------------------------------------------
+// Persisted-match reconstruction
+// ---------------------------------------------------------------------------
+
+test('matchResultFromStored rebuilds what was actually persisted', () => {
+  const result = matchResultFromStored({
+    score: 87,
+    matched_skills: ['React', 'TypeScript'],
+    skill_gap: ['GraphQL'],
+    breakdown: { skills: 52, location: 20, goals: 8, experience: 7 },
+    explanation: 'Strong match',
+  });
+
+  assert.equal(result.score, 87);
+  assert.deepEqual(result.matched, ['React', 'TypeScript']);
+  assert.deepEqual(result.gap, ['GraphQL']);
+  assert.equal(result.breakdown.skills, 52);
+  assert.equal(result.explanation, 'Strong match');
+});
+
+test('matchResultFromStored does not invent byCategory or reasons', () => {
+  // Neither field is written to user_opportunity_matches, so a synthesised
+  // value would render as if it had been computed. Empty is the honest answer.
+  const result = matchResultFromStored({ score: 50, breakdown: {} });
+  assert.deepEqual(result.byCategory, {});
+  assert.deepEqual(result.reasons, []);
+});
+
+test('matchResultFromStored tolerates a half-written row', () => {
+  const result = matchResultFromStored({ score: null, matched_skills: 'nope', breakdown: { skills: 12 } });
+  assert.equal(result.score, 0);
+  assert.deepEqual(result.matched, []);
+  // Missing factors fall back to the weight ceiling, not NaN, so the score bars
+  // render instead of collapsing to zero-width.
+  assert.equal(result.breakdown.skills, 12);
+  assert.equal(result.breakdown.location, 20);
+  assert.equal(result.explanation, '');
+});
+
+test('matchResultFromStored clamps an out-of-range stored score', () => {
+  assert.equal(matchResultFromStored({ score: 140 }).score, 100);
+  assert.equal(matchResultFromStored({ score: -20 }).score, 0);
+  assert.equal(matchResultFromStored({ score: Number.NaN }).score, 0);
+});
+
+test('a persisted match renders the same as a freshly computed one', () => {
+  const computed = calculateMatch(
+    { title: 'Senior React Engineer', location: 'Remote', skills_required: ['React', 'TypeScript'] },
+    { skills: ['React', 'TypeScript'] }
+  );
+  const stored = matchResultFromStored({
+    score: computed.score,
+    matched_skills: computed.matched,
+    skill_gap: computed.gap,
+    breakdown: computed.breakdown,
+    explanation: computed.explanation,
+  });
+
+  // The detail page must not show a different number from the dashboard.
+  assert.equal(stored.score, computed.score);
+  assert.deepEqual(stored.breakdown, computed.breakdown);
+  assert.deepEqual(stored.matched, computed.matched);
+  assert.deepEqual(stored.gap, computed.gap);
 });

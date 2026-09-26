@@ -4,6 +4,7 @@ import { google } from '@ai-sdk/google';
 import { streamText, generateText, tool, isStepCount } from 'ai';
 import { z } from 'zod';
 import { calculateMatch, normalizeOpportunityType, type MatchResult } from '@/lib/matching';
+import { yearsFromMetadata, type ProfileRow } from '@/lib/profile-subject';
 import { canonicalizeSkillList } from '@/lib/taxonomy';
 
 /**
@@ -130,34 +131,6 @@ async function fetchOpportunities(supabase: Awaited<ReturnType<typeof createClie
     console.warn('Navigator catalog unavailable:', e);
     return [];
   }
-}
-
-interface ProfileRow {
-  country: string | null;
-  role: string | null;
-  skills: string[] | null;
-  goals: string[] | null;
-  metadata: Record<string, unknown> | null;
-}
-
-function yearsFromMetadata(metadata: Record<string, unknown> | null): number | null {
-  const experience = metadata?.experience;
-  if (!Array.isArray(experience) || experience.length === 0) return null;
-  const now = Date.now();
-  const durations: number[] = [];
-  for (const entry of experience) {
-    if (!entry || typeof entry !== 'object') continue;
-    const item = entry as Record<string, unknown>;
-    const start = typeof item.startDate === 'string' ? Date.parse(item.startDate) : NaN;
-    const current = item.current === true;
-    const end = current ? now : typeof item.endDate === 'string' ? Date.parse(item.endDate) : NaN;
-    if (!Number.isFinite(start)) continue;
-    const stop = Number.isFinite(end) ? end : now;
-    if (stop <= start) continue;
-    durations.push((stop - start) / (1000 * 60 * 60 * 24 * 365));
-  }
-  if (durations.length === 0) return null;
-  return Math.round(Math.max(...durations) * 10) / 10;
 }
 
 export async function POST(request: Request) {

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createServerClient } from '@/utils/supabase/server';
-import { calculateMatch, type MatchBreakdown, type MatchResult, type MatchSubject } from '@/lib/matching';
-import { canonicalizeSkillList } from '@/lib/taxonomy';
+import { calculateMatch, type MatchResult } from '@/lib/matching';
+import { buildSubject, hasMatchableProfile, type ProfileRow } from '@/lib/profile-subject';
+import { createAdminClient } from '@/utils/supabase/admin';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -36,7 +37,7 @@ interface MatchWrite {
   score: number;
   matched_skills: string[];
   skill_gap: string[];
-  breakdown: MatchBreakdown;
+  breakdown: MatchResult['breakdown'];
   explanation: string;
 }
 
@@ -49,77 +50,16 @@ interface MatchWrite {
 async function writeMatches(
   rows: MatchWrite[]
 ): Promise<{ ok: true } | { ok: false; detail: string }> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceKey) {
+  const admin = createAdminClient();
+  if (!admin) {
     return { ok: false, detail: 'SUPABASE_SERVICE_ROLE_KEY is not configured' };
   }
-
-  const admin = createClient(url, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 
   const { error } = await admin
     .from('user_opportunity_matches')
     .upsert(rows, { onConflict: 'user_id,opportunity_url' });
 
   return error ? { ok: false, detail: error.message } : { ok: true };
-}
-
-interface ProfileRow {
-  name: string | null;
-  country: string | null;
-  role: string | null;
-  skills: string[] | null;
-  goals: string[] | null;
-  metadata: Record<string, unknown> | null;
-}
-
-function yearsFromMetadata(metadata: Record<string, unknown> | null): number | null {
-  const experience = metadata?.experience;
-  if (!Array.isArray(experience) || experience.length === 0) return null;
-
-  const now = Date.now();
-  const durations: number[] = [];
-
-  for (const entry of experience) {
-    if (!entry || typeof entry !== 'object') continue;
-    const item = entry as Record<string, unknown>;
-    const start = typeof item.startDate === 'string' ? Date.parse(item.startDate) : NaN;
-    const current = item.current === true;
-    const end = current ? now : typeof item.endDate === 'string' ? Date.parse(item.endDate) : NaN;
-
-    if (!Number.isFinite(start)) continue;
-    const stop = Number.isFinite(end) ? end : now;
-    if (stop <= start) continue;
-    durations.push((stop - start) / (1000 * 60 * 60 * 24 * 365));
-  }
-
-  if (durations.length === 0) return null;
-  // Overlapping roles are common; summing would double-count a shared period,
-  // so take the longest single stint rather than the total.
-  return Math.round(Math.max(...durations) * 10) / 10;
-}
-
-/** A subject whose skills are guaranteed present, after canonicalisation. */
-type ResolvedSubject = MatchSubject & { skills: string[] };
-
-function buildSubject(profile: ProfileRow): ResolvedSubject {
-  const metadata = profile.metadata ?? {};
-  const preferences = (metadata.preferences ?? {}) as Record<string, unknown>;
-
-  return {
-    skills: canonicalizeSkillList(profile.skills ?? []),
-    country: profile.country,
-    goals: profile.goals ?? [],
-    yearsExperience: yearsFromMetadata(metadata),
-    currentRole: profile.role,
-    preferredLocations: Array.isArray(preferences.locations) ? (preferences.locations as string[]) : null,
-    preferredTypes: Array.isArray(preferences.opportunityTypes)
-      ? (preferences.opportunityTypes as string[])
-      : null,
-  };
 }
 
 export async function GET(request: Request) {
