@@ -1,15 +1,19 @@
-from .base import infer_type, parse_organization, parse_location
+﻿from .base import infer_type, parse_organization, parse_location
 
 DOMAIN = "opportunitydesk.org"
-DEFAULT_URLS = ["https://opportunitydesk.org/"]
+DEFAULT_URLS = [
+    "https://opportunitydesk.org/",
+    "https://opportunitydesk.org/fellowships/",
+    "https://opportunitydesk.org/grants/",
+]
+
 
 def enrich(soup, source_url: str, title_text: str) -> dict:
     domain = "opportunitydesk.org"
-    t = title_text.lower()
-    # OpportunityDesk covers fellowships, scholarships, grants, contests
     opp_type = infer_type(domain, title_text)
-    # If generic, default to fellowships for OD
-    if opp_type == "jobs_remote" and domain in source_url:
+    if opp_type == "jobs_remote":
+        # OpportunityDesk is fellowships/scholarships/grants only. Falling back
+        # to "remote job" here was mislabelling every record on the site.
         opp_type = "fellowships"
     return {
         "opportunity_type": opp_type,
