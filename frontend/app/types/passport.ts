@@ -54,12 +54,17 @@ export interface CanonicalPassport {
   country: string;
   skills: string[];
   goals: string[];
+  /** e.g. PYF-8X29K-4 */
   passport_id: string | null;
   passport_share_slug: string | null;
   is_passport_public: boolean;
   passport_issued_at: string | null;
   onboarding_completed: boolean;
   metadata: PassportMetadata;
+  /** ISO-2 jurisdiction tag derived from country, e.g. NG. */
+  jurisdiction?: string | null;
+  /** Grants access to /admin. Never trusted from the client — see app/(app)/admin. */
+  isAdmin?: boolean;
 }
 
 /**

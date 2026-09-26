@@ -17,7 +17,7 @@ import {
   Lock,
   Globe
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/AppShell';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { useUserStore } from '@/app/store';
 import { calculateProfileCompleteness } from '@/app/types/passport';
 import { createClient } from '@/utils/supabase/client';
@@ -69,7 +69,7 @@ export default function PassportPage() {
   };
 
   return (
-    <AppShell
+    <PageHeader
       title="Talent Passport"
       subtitle="Your portable, cryptographically structured professional credential"
     >
@@ -275,6 +275,6 @@ export default function PassportPage() {
           </div>
         )}
       </div>
-    </AppShell>
+    </PageHeader>
   );
 }

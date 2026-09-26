@@ -8,10 +8,10 @@ import {
   MapPin, Calendar, Building2, Zap, X, ChevronDown, SlidersHorizontal,
   Briefcase, GraduationCap, Code2, Award, Globe, Users
 } from 'lucide-react';
-import { useUserStore } from '../store';
-import { calculateFullMatch, getOpportunityKey } from '../utils/score';
+import { useUserStore } from '@/app/store';
+import { calculateFullMatch, getOpportunityKey } from '@/app/utils/score';
 import { createClient } from '@/utils/supabase/client';
-import { AppShell } from '@/components/layout/AppShell';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { VerticalFitSlider } from '@/components/visual/VerticalFitSlider';
 
 const TYPE_OPTIONS = [
@@ -268,10 +268,9 @@ function OpportunitiesInner() {
   const strongMatches = scoredOpportunities.filter(o => o._score >= 60).length;
 
   return (
-    <AppShell
+    <PageHeader
       title="Opportunity Catalog"
       subtitle={`${opportunities.length} opportunities verified · ${strongMatches} strong matches`}
-      requireAuth={false}
     >
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Main Content Column */}
@@ -434,7 +433,7 @@ function OpportunitiesInner() {
           </div>
         </aside>
       </div>
-    </AppShell>
+    </PageHeader>
   );
 }
 

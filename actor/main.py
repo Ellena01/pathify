@@ -1,4 +1,5 @@
 import asyncio
+import re
 from datetime import datetime
 from typing import List
 from urllib.parse import urlparse
@@ -44,6 +45,39 @@ except Exception as e:
         return ["https://www.ycombinator.com/jobs"]
     def resolve_enricher(a,b):  # type: ignore
         return None
+
+# --- Link admission filters -------------------------------------------------
+# A generic find_all("a") over a listing page harvests the entire page,
+# including nav, footer, cookie banners and legal links. These markers reject
+# site furniture before any skill extraction (and any paid LLM call) happens.
+
+# Text markers: substrings of the anchor text that identify non-opportunity links.
+CHROME_TEXT_MARKERS = (
+    "sign up", "sign in", "log in", "logout", "create an account", "get started free",
+    "privacy policy", "terms of", "cookie", "accept all", "manage cookies",
+    "download the app", "follow us", "newsletter", "subscribe to our",
+    "skip to content", "back to top", "read more about us", "about us",
+    "contact us", "careers at", "advertise", "press", "sitemap",
+    "all rights reserved", "view all jobs", "see all", "load more",
+)
+
+# Href markers: exact path SEGMENTS that identify navigation / utility links.
+# Matched segment-wise rather than as substrings, because a substring test on
+# "/app" also rejects "/apply" — which is where most real application links live.
+CHROME_HREF_SEGMENTS = frozenset({
+    "login", "signup", "sign-in", "sign-up", "register", "auth", "logout",
+    "privacy", "privacy-policy", "terms", "terms-of-service", "legal",
+    "cookie", "cookies", "sitemap", "contact", "about", "newsletter",
+    "subscribe", "download", "app", "apps", "careers", "advertise", "press",
+    "help", "support", "faq", "tos", "privacy-notice",
+})
+
+# Path segments that on their own never identify a specific opportunity.
+ROOT_ONLY_SEGMENTS = {"jobs", "events", "hackathons", "opportunities", "grants", "search", "browse", "index.html", "index.htm"}
+
+# Minimum anchor text length. Named because it is a real tuning knob.
+MIN_LINK_TEXT_LEN = 12
+
 
 class OpportunityRecord(BaseModel):
     title: str = Field(..., description="Job or fellowship title")
@@ -136,6 +170,34 @@ async def main():
             except Exception:
                 return url.lower()
 
+        def _is_chrome_link(lower_text: str, href: str) -> bool:
+            """Site furniture: nav, footer, legal, auth, social. Never an opportunity."""
+            if any(t in lower_text for t in CHROME_TEXT_MARKERS):
+                return True
+            path = urlparse(href).path or ""
+            segments = {s.lower() for s in path.split("/") if s}
+            return bool(segments & CHROME_HREF_SEGMENTS)
+
+        def _looks_like_detail_link(href: str) -> bool:
+            """Require a specific target, not a bare listing link like /jobs."""
+            path = urlparse(href).path or ""
+            segments = [s for s in path.split("/") if s]
+            if not segments:
+                return False
+            # A lone root segment is the listing page itself, never an item.
+            if len(segments) == 1:
+                return segments[0].lower() not in ROOT_ONLY_SEGMENTS
+            # Deeper paths are specific items even when they sit under a
+            # collection root, e.g. /jobs/eng-123 or /hackathons/xyz.
+            return True
+
+        def _is_vertical_link(lower_text: str, href: str, keywords: list[str]) -> bool:
+            """Accept on a keyword in the text OR an opportunity-shaped URL slug."""
+            if any(kw in lower_text for kw in keywords):
+                return True
+            slug = urlparse(href).path.lower()
+            return any(re.search(rf"/{kw}", slug) for kw in ("job", "role", "position", "fellowship", "hackathon", "grant", "scholarship", "internship", "event", "opportunit"))
+
         @crawler.router.default_handler
         async def request_handler(context) -> None:
             actor_logger.info(f"Crawling source: {context.request.url}")
@@ -146,7 +208,8 @@ async def main():
             links = soup.find_all("a", href=True)
             per_page = 0
             page_new = 0
-            # Filter helpers — MVP 5 expanded vertical keywords
+            # Filter helpers — vertical keywords used to CLASSIFY a link that has
+            # already been accepted by the structural filters below.
             vertical_keywords = [
                 "engineer","designer","developer","fellowship","analyst","manager","remote",
                 "scholarship","hackathon","grant","funding","internship","conference","event",
@@ -158,13 +221,24 @@ async def main():
                     break
                 text = a.get_text().strip()
                 href = a["href"]
-                if len(text) < 10:
+                if len(text) < MIN_LINK_TEXT_LEN:
                     continue
                 if per_page >= 15:
                     break
-                # Must match at least one vertical keyword OR source is MVP 5 (be permissive for those domains)
-                is_mvp_domain = any(d in context.request.url.lower() for d in ["devpost.com","opportunitydesk","eventbrite.com","workatastartup","ycombinator.com"])
-                if not is_mvp_domain and not any(kw in text.lower() for kw in vertical_keywords):
+
+                # ---- Structural rejection -------------------------------------
+                # Previously the only structural filter was `len(text) >= 10`,
+                # and the vertical-keyword check was short-circuited to `True`
+                # for every MVP seed domain. That put "Privacy Policy",
+                # "Sign up for free" and "Download the app" into the dataset as
+                # opportunities. These filters are domain-agnostic and run
+                # before anything expensive (skill extraction, LLM calls).
+                lower_text = text.lower()
+                if _is_chrome_link(lower_text, href):
+                    continue
+                if not _looks_like_detail_link(href):
+                    continue
+                if not _is_vertical_link(lower_text, href, vertical_keywords):
                     continue
 
                 # Build absolute URL

@@ -20,6 +20,8 @@ Creates:
 with RLS policies.
 2. `supabase/migrations/20260924_passport_org_alerts_navigator.sql` — adds `passport_id / share_slug / synthetic_profiles (14 seeds) / alerts / navigator indexes`.
 3. `supabase/migrations/20260924_fix_rls_and_security.sql` — hardens `opportunities_cache` update to `service_role` only, adds `user_profiles delete` policy.
+4. `supabase/migrations/20260926_extended_passport_onboarding.sql` — extended `metadata` jsonb, `onboarding_completed` flag.
+5. `supabase/migrations/20260926_hardening_passport_v2.sql` — **required.** Closes the world-writable `opportunities_cache` update policy, revokes the unauthenticated `generate_share_slug` RPC, moves passports to `PYF-XXXXX-C`, adds `first_seen_at`, the `saved_jobs` UPDATE policy, `user_opportunity_matches`, and the admin audit log.
 
 Verify:
 ```sql
@@ -36,16 +38,28 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=ey...
 SUPABASE_SERVICE_ROLE_KEY=ey... # Settings → API → service_role (server-only!)
 APIFY_TOKEN=apify_api_...
 APIFY_DATASET_ID=7vWfQxcWXaL9qJShK
-CRON_SECRET=bf845d65b4de9cf841a7e3efdf49aa2cf3189743224debe741b63918a525f38b # openssl rand -hex 32
+CRON_SECRET=<generate: openssl rand -hex 32>
 RESEND_API_KEY=re_... # for alerts@pathify.app daily digest
 ALERTS_FROM_EMAIL=Pathify <alerts@pathify.app>
 NEXT_PUBLIC_SITE_URL=https://pathify.app
 # Optional BEST LLM (Apify Actor env also):
 GEMINI_API_KEY=...  # or OPENAI_API_KEY
 ```
-Recent `CRON_SECRET` rotated to `bf845d…38b` — set same in Vercel Env + Apify Actor env secrets. Never expose `SUPABASE_SERVICE_ROLE_KEY`/`APIFY_TOKEN`/`RESEND_API_KEY` to browser.
 
-Sync is now **Apify webhook primary** (`Apify Scheduler → POST /api/sync` with `x-cron-secret`), not Vercel cron. `vercel.json` only crons `/api/alerts/dispatch 0 7 * * *`.
+> **Never commit a real secret.** Generate `CRON_SECRET` per environment and
+> store it in Vercel + Apify Actor env only. A previous revision of this file
+> contained a live value; it is treated as compromised and must be rotated.
+
+Set the *same* `CRON_SECRET` in Vercel Env and in the Apify Actor env. Never
+expose `SUPABASE_SERVICE_ROLE_KEY` / `APIFY_TOKEN` / `RESEND_API_KEY` to the browser.
+
+Auth for scheduled endpoints is `Authorization: Bearer $CRON_SECRET` only —
+header-presence checks such as `x-vercel-cron` are **not** authentication,
+because any header a client can set is not a secret.
+
+Sync is **Apify webhook primary** (`Apify Scheduler → POST /api/sync` with
+`Authorization: Bearer $CRON_SECRET`). `vercel.json` only crons
+`/api/alerts/dispatch 0 7 * * *`.
 
 ## 5. Test Locally
 ```bash

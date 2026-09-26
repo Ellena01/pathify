@@ -3,27 +3,19 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  Compass,
-  Layers,
-  Sparkles,
-  Shield,
-  Settings,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  Bookmark,
-  CheckSquare,
-  Globe,
-  Award
-} from 'lucide-react';
+import { LogOut, ChevronLeft, ChevronRight, Shield } from 'lucide-react';
 import { useUserStore } from '@/app/store';
 import { createClient } from '@/utils/supabase/client';
 import { calculateProfileCompleteness } from '@/app/types/passport';
 import { useSidebar } from './SidebarContext';
 import { NavGroup } from '../navigation/NavGroup';
-import { NavItemConfig } from '../navigation/NavItem';
+import type { NavItemConfig } from '../navigation/NavItem';
 import { NavTooltip } from '../navigation/NavTooltip';
+import { NAV_GROUPS, ADMIN_NAV_ITEM } from '@/lib/navigation';
+import {
+  SIDEBAR_WIDTH_COLLAPSED,
+  SIDEBAR_WIDTH_EXPANDED,
+} from '@/lib/navigation';
 
 interface SidebarProps {
   onCloseMobile?: () => void;
@@ -34,6 +26,7 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
   const supabase = createClient();
   const user = useUserStore();
   const { isSidebarCollapsed, toggleCollapse } = useSidebar();
+  const isAdmin = user.isAdmin;
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -44,31 +37,12 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
 
   const completeness = calculateProfileCompleteness(user);
 
-  // Group 1: Overview
-  const OVERVIEW_ITEMS: NavItemConfig[] = [
-    { href: '/dashboard', label: 'Dashboard', icon: Layers },
-  ];
-
-  // Group 2: Intelligence & Discovery
-  const DISCOVERY_ITEMS: NavItemConfig[] = [
-    { href: '/opportunities', label: 'Opportunities', icon: Compass },
-    { href: '/navigator', label: 'AI Navigator', icon: Sparkles, badge: 'AI' },
-  ];
-
-  // Group 3: Career & Identity
-  const CAREER_ITEMS: NavItemConfig[] = [
-    { href: '/passport', label: 'Talent Passport', icon: Shield },
-  ];
-
-  // Group 4: Account & Preferences
-  const ACCOUNT_ITEMS: NavItemConfig[] = [
-    { href: '/settings', label: 'Settings & Profile', icon: Settings },
-  ];
-
   return (
     <aside
       className={`h-full bg-[#080414] border-r border-white/[0.08] flex flex-col justify-between shrink-0 select-none transition-all duration-300 ease-in-out ${
-        isSidebarCollapsed ? 'w-20' : 'w-[272px]'
+        // Must stay in lockstep with the fixed wrapper in AppShell and the
+        // offset in MainCanvas, or the sidebar overdraws the content.
+        isSidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
       }`}
     >
       {/* Brand Header & Collapse Toggle */}
@@ -126,33 +100,24 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
             isSidebarCollapsed ? 'px-2' : ''
           }`}
         >
-          <NavGroup
-            label="Overview"
-            items={OVERVIEW_ITEMS}
-            isCollapsed={isSidebarCollapsed}
-            onItemClick={onCloseMobile}
-          />
+          {NAV_GROUPS.map((group) => (
+            <NavGroup
+              key={group.label}
+              label={group.label}
+              items={group.items}
+              isCollapsed={isSidebarCollapsed}
+              onItemClick={onCloseMobile}
+            />
+          ))}
 
-          <NavGroup
-            label="Discover"
-            items={DISCOVERY_ITEMS}
-            isCollapsed={isSidebarCollapsed}
-            onItemClick={onCloseMobile}
-          />
-
-          <NavGroup
-            label="Career"
-            items={CAREER_ITEMS}
-            isCollapsed={isSidebarCollapsed}
-            onItemClick={onCloseMobile}
-          />
-
-          <NavGroup
-            label="Account"
-            items={ACCOUNT_ITEMS}
-            isCollapsed={isSidebarCollapsed}
-            onItemClick={onCloseMobile}
-          />
+          {isAdmin && (
+            <NavGroup
+              label="Platform"
+              items={[ADMIN_NAV_ITEM] as NavItemConfig[]}
+              isCollapsed={isSidebarCollapsed}
+              onItemClick={onCloseMobile}
+            />
+          )}
         </nav>
       </div>
 

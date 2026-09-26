@@ -8,9 +8,9 @@ import {
   ChevronRight, RefreshCw, CheckCircle2
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
-import { useUserStore } from '../store';
-import { getOpportunityKey } from '../utils/score';
-import { AppShell } from '@/components/layout/AppShell';
+import { useUserStore } from '@/app/store';
+import { getOpportunityKey } from '@/app/utils/score';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 interface Message {
   id: string;
@@ -133,11 +133,11 @@ export default function NavigatorPage() {
   const clearChat = () => { setMessages([]); setInput(''); inputRef.current?.focus(); };
 
   return (
-    <AppShell
-      title="AI Opportunity Navigator"
-      subtitle="Interactive opportunity discovery powered by Gemini 2.5 Flash"
-      requireAuth={true}
-    >
+      <PageHeader
+        title="AI Opportunity Navigator"
+        subtitle="Interactive opportunity discovery powered by Gemini 2.5 Flash"
+      >
+
       <div className="max-w-4xl mx-auto flex flex-col min-h-[calc(100vh-12rem)] space-y-4">
         {/* Profile Context Banner & Reset */}
         <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -331,6 +331,6 @@ export default function NavigatorPage() {
         </div>
       )}
       </div>
-    </AppShell>
+    </PageHeader>
   );
 }

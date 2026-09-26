@@ -3,13 +3,16 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { LucideIcon } from 'lucide-react';
 import { NavTooltip } from '../navigation/NavTooltip';
+import { isNavItemActive } from '@/lib/navigation';
 
 export interface NavItemConfig {
   href: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
   badge?: string;
+  description?: string;
 }
 
 interface NavItemProps {
@@ -21,8 +24,7 @@ interface NavItemProps {
 export function NavItem({ item, isCollapsed, onClick }: NavItemProps) {
   const pathname = usePathname();
   const Icon = item.icon;
-  const isActive =
-    pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+  const isActive = isNavItemActive(pathname, item.href);
 
   const content = (
     <Link

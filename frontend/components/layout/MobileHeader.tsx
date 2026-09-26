@@ -4,22 +4,13 @@ import React from 'react';
 import Link from 'next/link';
 import { Menu, Sparkles, Shield, Loader2, Check } from 'lucide-react';
 import { useUserStore } from '@/app/store';
-import { AutosaveStatus } from '@/app/hooks/useAutosave';
+import { useUiStore } from '@/lib/ui-store';
 import { useSidebar } from './SidebarContext';
 
-interface MobileHeaderProps {
-  title?: string;
-  subtitle?: string;
-  autosaveStatus?: AutosaveStatus;
-}
-
-export function MobileHeader({
-  title,
-  subtitle,
-  autosaveStatus,
-}: MobileHeaderProps) {
+export function MobileHeader() {
   const user = useUserStore();
   const { openSidebar } = useSidebar();
+  const autosaveStatus = useUiStore((s) => s.autosaveStatus);
 
   return (
     <header className="sticky top-0 z-40 h-16 border-b border-white/[0.08] bg-[#080414]/85 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between gap-4">
@@ -33,30 +24,17 @@ export function MobileHeader({
           <Menu className="w-5 h-5" />
         </button>
 
-        {title ? (
-          <div className="min-w-0">
-            <h1 className="text-base font-bold text-[#F5F5F7] tracking-tight leading-none truncate">
-              {title}
-            </h1>
-            {subtitle && (
-              <p className="text-xs text-[#8B8B96] mt-0.5 leading-none truncate hidden sm:block">
-                {subtitle}
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-black tracking-tight bg-gradient-to-r from-white to-[#8B5CF6] bg-clip-text text-transparent">
-              PATHIFY
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-black tracking-tight bg-gradient-to-r from-white to-[#8B5CF6] bg-clip-text text-transparent truncate">
+            PATHIFY
+          </span>
+        </div>
       </div>
 
       {/* Right: Autosave status indicator + Quick Actions + User Passport Chip */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         {/* Autosave subtle pill */}
-        {autosaveStatus && autosaveStatus !== 'idle' && (
+        {autosaveStatus !== 'idle' && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-all">
             {autosaveStatus === 'saving' && (
               <>

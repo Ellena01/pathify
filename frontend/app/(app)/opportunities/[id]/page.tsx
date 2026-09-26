@@ -7,10 +7,10 @@ import {
   MapPin, Calendar, Building2, Tag, Zap, Shield, ChevronRight,
   BookOpen, Target, TrendingUp
 } from 'lucide-react';
-import { useUserStore } from '../../store';
-import { calculateFullMatch, getOpportunityKey } from '../../utils/score';
+import { useUserStore } from '@/app/store';
+import { calculateFullMatch, getOpportunityKey } from '@/app/utils/score';
 import { createClient } from '@/utils/supabase/client';
-import { AppShell } from '@/components/layout/AppShell';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 function typeLabel(t: string) {
   return (t || 'opportunity').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -159,11 +159,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const scoreColor = match && match.score >= 80 ? '#10B981' : match && match.score >= 60 ? '#A78BFA' : '#8B5CF6';
 
   return (
-    <AppShell
+    <PageHeader
       title={opp.title}
       subtitle={`${opp.organization} · ${opp.location || 'Remote'}`}
-      requireAuth={false}
     >
+
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Back Link Breadcrumb */}
         <div className="flex items-center gap-2 text-xs text-[#A1A1AA]">
@@ -391,6 +391,6 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           </Link>
         </div>
       </div>
-    </AppShell>
+    </PageHeader>
   );
 }

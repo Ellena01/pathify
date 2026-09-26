@@ -11,7 +11,7 @@ import {
   X,
   AlertCircle
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/AppShell';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { SecondaryTabs } from '@/components/layout/SecondaryTabs';
 import { useUserStore } from '@/app/store';
 import { useProfileAutosave } from '@/app/hooks/useAutosave';
@@ -66,10 +66,9 @@ export default function SettingsPage() {
   };
 
   return (
-    <AppShell
+    <PageHeader
       title="Profile & Settings"
       subtitle="Edit your canonical profile — all matching and recommendations update instantly"
-      autosaveStatus={autosaveStatus}
     >
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Secondary Navigation Tabs */}
@@ -320,6 +319,6 @@ export default function SettingsPage() {
         </div>
         )}
       </div>
-    </AppShell>
+    </PageHeader>
   );
 }

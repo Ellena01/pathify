@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
+import { X } from 'lucide-react';
+
 import { Sidebar } from './Sidebar';
 import { MobileHeader } from './MobileHeader';
 import { MobileNavigation } from './MobileNavigation';
@@ -9,123 +11,126 @@ import { MainCanvas } from './MainCanvas';
 import { SidebarProvider, useSidebar } from './SidebarContext';
 import { createClient } from '@/utils/supabase/client';
 import { useUserStore } from '@/app/store';
-import { AutosaveStatus } from '@/app/hooks/useAutosave';
-import { X } from 'lucide-react';
+import {
+  SIDEBAR_WIDTH_COLLAPSED,
+  SIDEBAR_WIDTH_EXPANDED,
+} from '@/lib/navigation';
+
+/**
+ * The unified application shell.
+ *
+ * Rendered once by `app/(app)/layout.tsx` rather than imported by every page,
+ * which is how the layout had drifted between routes.
+ *
+ * Authentication and the onboarding gate are enforced in
+ * `utils/supabase/middleware.ts`. This component deliberately does NOT redirect:
+ * duplicating the check in a `useEffect` was what caused protected UI to flash
+ * before bouncing an anonymous visitor.
+ *
+ * Its only jobs are chrome (sidebar, mobile drawer, bottom bar) and hydrating
+ * the client-side profile cache that the passport chip and completeness meter
+ * read from.
+ */
 
 interface AppShellProps {
   children: React.ReactNode;
-  title?: string;
-  subtitle?: string;
-  autosaveStatus?: AutosaveStatus;
-  requireAuth?: boolean;
 }
 
-function AppShellContent({
-  children,
-  title,
-  subtitle,
-  autosaveStatus,
-  requireAuth = true,
-}: AppShellProps) {
-  const router = useRouter();
+function AppShellContent({ children }: AppShellProps) {
   const pathname = usePathname();
-  const supabase = createClient();
-  const { hydrate, isHydrated } = useUserStore();
   const { isSidebarOpen, closeSidebar, isSidebarCollapsed } = useSidebar();
 
-  // Close mobile drawer automatically upon client route changes
+  // Close the mobile drawer on navigation.
   useEffect(() => {
     closeSidebar();
   }, [pathname, closeSidebar]);
 
-  // Lock body scroll when mobile drawer is open
+  // Lock body scroll behind the open drawer.
   useEffect(() => {
-    if (isSidebarOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    if (!isSidebarOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = previous;
     };
   }, [isSidebarOpen]);
 
+  // Hydrate the profile cache once per session. This is a cache fill, not an
+  // access-control decision.
   useEffect(() => {
-    const initSession = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          if (requireAuth) {
-            router.push('/login');
-          }
-          return;
-        }
+    let cancelled = false;
 
-        // Fetch user profile from Supabase
+    async function hydrateProfile() {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+
         const { data: profile } = await supabase
           .from('user_profiles')
-          .select('*')
+          .select(
+            'id, name, role, country, skills, goals, passport_id, passport_share_slug, is_passport_public, passport_issued_at, onboarding_completed, metadata, jurisdiction, is_admin'
+          )
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
-        if (profile) {
-          hydrate({
-            id: profile.id,
-            name: profile.name || user.user_metadata?.name || '',
-            role: profile.role || '',
-            country: profile.country || user.user_metadata?.country || '',
-            skills: profile.skills || [],
-            goals: profile.goals || [],
-            passport_id: profile.passport_id,
-            passport_share_slug: profile.passport_share_slug,
-            is_passport_public: profile.is_passport_public,
-            passport_issued_at: profile.passport_issued_at,
-            onboarding_completed: Boolean(profile.onboarding_completed),
-            metadata: profile.metadata || {},
-          });
+        if (!profile || cancelled) return;
 
-          // Check if onboarding is needed (only if incomplete and not already on /onboarding)
-          if (!profile.onboarding_completed && window.location.pathname !== '/onboarding') {
-            router.push('/onboarding');
-          }
-        }
-      } catch (err) {
-        console.warn('Session init error:', err);
+        useUserStore.getState().hydrate({
+          id: profile.id,
+          name: profile.name || user.user_metadata?.name || '',
+          role: profile.role || '',
+          country: profile.country || user.user_metadata?.country || '',
+          skills: profile.skills || [],
+          goals: profile.goals || [],
+          passport_id: profile.passport_id,
+          passport_share_slug: profile.passport_share_slug,
+          is_passport_public: profile.is_passport_public,
+          passport_issued_at: profile.passport_issued_at,
+          onboarding_completed: Boolean(profile.onboarding_completed),
+          metadata: profile.metadata || {},
+          jurisdiction: profile.jurisdiction ?? null,
+          isAdmin: Boolean(profile.is_admin),
+        });
+      } catch {
+        // A failed cache fill must never block rendering. The server-rendered
+        // surfaces remain authoritative.
       }
-    };
-
-    if (!isHydrated) {
-      initSession();
     }
-  }, [supabase, hydrate, isHydrated, requireAuth, router]);
+
+    hydrateProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#080414] text-[#F5F5F7] flex flex-col lg:flex-row relative selection:bg-[#8B5CF6]/30">
-      {/* Desktop Persistent Sidebar */}
+    <div className="min-h-screen bg-[#080414] text-[#F5F5F7] relative selection:bg-[#8B5CF6]/30">
+      {/* Desktop sidebar.
+          Width here MUST match the <aside> in Sidebar.tsx and the margin in
+          MainCanvas.tsx. They previously disagreed (256 / 272 / 256), so the
+          sidebar's background and border painted 16px over the content. */}
       <div
-        className={`hidden lg:block h-screen fixed top-0 left-0 z-30 transition-all duration-300 ease-in-out ${
-          isSidebarCollapsed ? 'w-20' : 'w-64'
+        className={`hidden lg:block fixed top-0 left-0 h-screen z-30 transition-all duration-300 ease-in-out overflow-hidden ${
+          isSidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
         }`}
       >
         <Sidebar />
       </div>
 
-      {/* Mobile Drawer Overlay */}
+      {/* Mobile drawer */}
       <div
         className={`lg:hidden fixed inset-0 z-50 transition-opacity duration-300 ${
-          isSidebarOpen
-            ? 'opacity-100 pointer-events-auto'
-            : 'opacity-0 pointer-events-none'
+          isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
-        {/* Backdrop */}
         <div
           className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
           onClick={closeSidebar}
           aria-hidden="true"
         />
-
-        {/* Drawer panel */}
         <div
           role="dialog"
           aria-modal="true"
@@ -146,28 +151,22 @@ function AppShellContent({
         </div>
       </div>
 
-      {/* Main Canvas & Content Area */}
       <MainCanvas>
-        <MobileHeader
-          title={title}
-          subtitle={subtitle}
-          autosaveStatus={autosaveStatus}
-        />
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <MobileHeader />
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 lg:pb-8">
           {children}
         </main>
       </MainCanvas>
 
-      {/* Mobile Bottom Navigation */}
       <MobileNavigation />
     </div>
   );
 }
 
-export function AppShell(props: AppShellProps) {
+export function AppShell({ children }: AppShellProps) {
   return (
     <SidebarProvider>
-      <AppShellContent {...props} />
+      <AppShellContent>{children}</AppShellContent>
     </SidebarProvider>
   );
 }

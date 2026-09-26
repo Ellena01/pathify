@@ -9,10 +9,10 @@ import {
   Layers, CheckSquare, Sparkles, ExternalLink, ArrowRight, ChevronRight
 } from 'lucide-react';
 import axios from 'axios';
-import { useUserStore } from '../store';
+import { useUserStore } from '@/app/store';
 import { createClient } from '@/utils/supabase/client';
-import { calculateWeightedMatch, calculateFullMatch, getOpportunityKey } from '../utils/score';
-import { AppShell } from '@/components/layout/AppShell';
+import { calculateWeightedMatch, calculateFullMatch, getOpportunityKey } from '@/app/utils/score';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { PathifyDome } from '@/components/visual/PathifyDome';
 import { SecondaryTabs } from '@/components/layout/SecondaryTabs';
 
@@ -320,7 +320,10 @@ export default function PathifyDashboard() {
   });
 
   return (
-    <AppShell title="Dashboard" subtitle="Personalized Opportunity Intelligence & Application Tracker">
+    <PageHeader
+      title="Dashboard"
+      subtitle="Personalized Opportunity Intelligence & Application Tracker"
+    >
 
 
       {/* Live status bar */}
@@ -726,6 +729,6 @@ export default function PathifyDashboard() {
           </div>
         </div>
       )}
-    </AppShell>
+    </PageHeader>
   );
 }

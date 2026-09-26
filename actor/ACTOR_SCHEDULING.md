@@ -22,13 +22,20 @@ apify push
    - Cron: `0 */6 * * *` (every 6h) or daily `0 8 * * *`
    - Input same as above
 2. Add Webhook: After Actor run → POST https://YOUR_FRONTEND/api/sync
-   - Header `x-cron-secret: YOUR_CRON_SECRET` (new: `bf845d65b4de9cf841a7e3efdf49aa2cf3189743224debe741b63918a525f38b` — rotate per env, set in Apify Actor env + Vercel env)
-   - Body `{"datasetId":"7vWfQxcWXaL9qJShK"}`
-   - Apify token now sent via `Authorization: Bearer` header (not `?token=` query) — `frontend/app/api/sync` fixed.
+   - Header `Authorization: Bearer $CRON_SECRET` (set `CRON_SECRET` in both the
+     Apify Actor env and Vercel env — generate with `openssl rand -hex 32`)
+   - **Do not send a `datasetId` in the body.** The endpoint reads
+     `APIFY_DATASET_ID` from its own environment; accepting a caller-supplied
+     dataset id lets anyone who holds the token redirect the sync at an
+     arbitrary dataset.
+   - Apify token is sent as `Authorization: Bearer` to Apify's API (not `?token=`).
+
+> A previous revision of this file contained a live `CRON_SECRET`. It is
+> compromised — rotate it in Vercel and Apify, and never document the value.
 
 This triggers `frontend/app/api/sync/route.ts` (service_role) which upserts Dataset → Supabase `opportunities_cache`.
 
-**Note:** `frontend/vercel.json` now only crons `/api/alerts/dispatch 0 7 * * *` (daily digest). `/api/sync` is **not** in Vercel cron — Apify webhook is primary to avoid double fetch cost. Do not add sync back to vercel.json.
+**Note:** `frontend/vercel.json` only crons `/api/alerts/dispatch 0 7 * * *` (daily digest), and sends `Authorization: Bearer ${CRON_SECRET}`. `/api/sync` is **not** in Vercel cron — the Apify webhook is primary. Do not add sync back to vercel.json.
 
 ## Flow
 Scheduled Runs → Apify Dataset (push_data per-record deduped, per_domain telemetry) → Webhook /api/sync → Supabase cache → Frontend /api/jobs reads Supabase first (fast), falls back to Apify if cache miss. Alerts dispatch via Vercel cron next morning.

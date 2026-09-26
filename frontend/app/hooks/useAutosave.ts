@@ -4,8 +4,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useUserStore } from '@/app/store';
 import { CanonicalPassport } from '@/app/types/passport';
+import { useUiStore, type AutosaveStatus } from '@/lib/ui-store';
 
-export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+export type { AutosaveStatus };
 
 interface UseAutosaveOptions {
   debounceMs?: number;
@@ -27,10 +28,11 @@ export function useProfileAutosave(options: UseAutosaveOptions = {}) {
 
   const supabase = createClient();
   const { setProfile } = useUserStore();
+  const setAutosaveStatus = useUiStore((s) => s.setAutosaveStatus);
 
   const performSave = useCallback(async (updates: Partial<CanonicalPassport>) => {
     try {
-      setStatus('saving');
+      setStatus('saving'); setAutosaveStatus('saving');
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setStatus('idle');
@@ -79,20 +81,22 @@ export function useProfileAutosave(options: UseAutosaveOptions = {}) {
         setProfile(data);
       }
 
-      setStatus('saved');
+      setStatus('saved'); setAutosaveStatus('saved');
       setLastSavedAt(new Date());
       onSuccess?.();
 
       // Return to idle after 2.5s
       setTimeout(() => {
         setStatus((prev) => (prev === 'saved' ? 'idle' : prev));
+        // The store setter takes a plain value, not an updater.
+        setAutosaveStatus(useUiStore.getState().autosaveStatus === 'saved' ? 'idle' : useUiStore.getState().autosaveStatus);
       }, 2500);
     } catch (err: any) {
       console.warn('Autosave error:', err?.message || err);
-      setStatus('error');
+      setStatus('error'); setAutosaveStatus('error');
       onError?.(err);
     }
-  }, [supabase, setProfile, onSuccess, onError]);
+  }, [supabase, setProfile, setAutosaveStatus, onSuccess, onError]);
 
   const scheduleSave = useCallback((updates: Partial<CanonicalPassport>) => {
     // Merge into local store immediately for fluid UI
@@ -105,7 +109,7 @@ export function useProfileAutosave(options: UseAutosaveOptions = {}) {
         : pendingUpdatesRef.current.metadata,
     };
 
-    setStatus('saving');
+    setStatus('saving'); setAutosaveStatus('saving');
 
     if (timerRef.current) {
       clearTimeout(timerRef.current);
