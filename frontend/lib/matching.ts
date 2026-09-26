@@ -28,6 +28,43 @@
 import { resolveSkills, type ResolvedSkill } from './taxonomy';
 
 // ---------------------------------------------------------------------------
+// Catalog hygiene
+// ---------------------------------------------------------------------------
+
+/**
+ * The two predicates every user-facing read of `opportunities_cache` must apply:
+ *
+ *  - `is_active = false` marks a listing the crawler has confirmed is gone
+ *    (dead apply link, closed req, expired post). Serving it is worse than
+ *    serving nothing: the user clicks through to a 404.
+ *  - `verification_status = 'rejected'` is a moderator decision. A rejected
+ *    listing appearing in a feed, a digest or an AI answer is a moderation
+ *    bypass, not a ranking quirk.
+ *
+ * The SQL form is written out at each call site (`.eq('is_active', true).neq(
+ * 'verification_status', 'rejected')`) because this project has no generated
+ * Database types, so a shared builder helper would have to be untyped to accept
+ * more than one client. The in-memory form — for rows with no SQL layer, such as
+ * the Apify dataset fallback — lives here.
+ *
+ * Absent values are treated as visible: actor output predates both columns, and
+ * defaulting to hidden would silently empty the feed on an unmigrated database.
+ */
+export const CATALOG_HYGIENE_COLUMNS = {
+  isActive: 'is_active',
+  verificationStatus: 'verification_status',
+  rejected: 'rejected',
+} as const;
+
+/** Pure predicate for rows that did not come from Postgres (e.g. Apify output). */
+export function isVisibleListing(row: { is_active?: unknown; verification_status?: unknown } | null): boolean {
+  if (!row) return false;
+  if (row.is_active === false) return false;
+  if (row.verification_status === CATALOG_HYGIENE_COLUMNS.rejected) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 

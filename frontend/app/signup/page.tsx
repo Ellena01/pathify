@@ -84,7 +84,7 @@ export default function SignupPage() {
             <select value={country} onChange={e=>setCountry(e.target.value)} className="mt-1 w-full h-11 bg-black/30 border border-white/10 rounded-full px-4 text-base sm:text-sm text-[#F5F5F7] focus:outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#8B5CF6]/20">
               {COUNTRIES.map(c => <option key={c} value={c} className="bg-[#080414]">{c}</option>)}
             </select>
-            <p className="text-[11px] text-[#8B8B96] mt-1">Sets your passport <span className="font-mono text-[#A78BFA]">PTQ-{country==='Global / Remote'?'GL':country.slice(0,2).toUpperCase()}-2026-XXXX</span> — keeps African-first story.</p>
+            <p className="text-[11px] text-[#8B8B96] mt-1">Issues your passport <span className="font-mono text-[#A78BFA]">PYF-8X29K-4</span> — a jurisdiction-stamped credential. Your country sets the jurisdiction, not the ID.</p>
           </div>
           <div>
             <label className="text-xs tracking-widest uppercase text-[#A1A1AA] font-semibold">Email</label>

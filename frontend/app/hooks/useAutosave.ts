@@ -30,13 +30,13 @@ export function useProfileAutosave(options: UseAutosaveOptions = {}) {
   const { setProfile } = useUserStore();
   const setAutosaveStatus = useUiStore((s) => s.setAutosaveStatus);
 
-  const performSave = useCallback(async (updates: Partial<CanonicalPassport>) => {
+  const performSave = useCallback(async (updates: Partial<CanonicalPassport>): Promise<boolean> => {
     try {
       setStatus('saving'); setAutosaveStatus('saving');
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setStatus('idle');
-        return;
+        return false;
       }
 
       // Format payload for public.user_profiles
@@ -91,10 +91,12 @@ export function useProfileAutosave(options: UseAutosaveOptions = {}) {
         // The store setter takes a plain value, not an updater.
         setAutosaveStatus(useUiStore.getState().autosaveStatus === 'saved' ? 'idle' : useUiStore.getState().autosaveStatus);
       }, 2500);
+      return true;
     } catch (err: any) {
       console.warn('Autosave error:', err?.message || err);
       setStatus('error'); setAutosaveStatus('error');
       onError?.(err);
+      return false;
     }
   }, [supabase, setProfile, setAutosaveStatus, onSuccess, onError]);
 
@@ -122,6 +124,34 @@ export function useProfileAutosave(options: UseAutosaveOptions = {}) {
     }, debounceMs);
   }, [debounceMs, performSave, setProfile]);
 
+  /**
+   * Cancel the debounce timer and write everything still pending in ONE
+   * request, merged with `extra` (which wins on conflict).
+   *
+   * This exists because `saveImmediately` alone is not enough at the end of
+   * onboarding: a skill added <debounceMs before the user clicked "Complete"
+   * is still sitting in `pendingUpdatesRef`, so the completion write races the
+   * queued one and the row can land with `onboarding_completed: true` but
+   * without the skill. Anything that reads the profile back immediately after
+   * saving it — notably the matching run — must flush first.
+   */
+  const flushPending = useCallback(
+    async (extra?: Partial<CanonicalPassport>): Promise<boolean> => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      const pending = pendingUpdatesRef.current;
+      pendingUpdatesRef.current = {};
+
+      const merged: Partial<CanonicalPassport> = { ...pending, ...(extra ?? {}) };
+      if (Object.keys(merged).length === 0) return true;
+
+      return performSave(merged);
+    },
+    [performSave]
+  );
+
   // Flush immediately if unmounting with pending changes
   useEffect(() => {
     return () => {
@@ -139,5 +169,6 @@ export function useProfileAutosave(options: UseAutosaveOptions = {}) {
     lastSavedAt,
     scheduleSave,
     saveImmediately: performSave,
+    flushPending,
   };
 }

@@ -49,7 +49,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const supabase = createClient();
   const user = useUserStore();
-  const { scheduleSave, saveImmediately, status: autosaveStatus } = useProfileAutosave({ debounceMs: 800 });
+  const { scheduleSave, flushPending, status: autosaveStatus } = useProfileAutosave({ debounceMs: 800 });
 
   const [step, setStep] = useState(1);
   const [skillInput, setSkillInput] = useState('');
@@ -129,12 +129,44 @@ export default function OnboardingPage() {
     });
   };
 
+  /**
+   * Finish onboarding: persist the profile, then run matching.
+   *
+   * The matching run matters as much as the profile write. `/api/match` is the
+   * only thing that populates `user_opportunity_matches`, and both the
+   * dashboard and the pathways page read that table instead of recomputing
+   * scores in the browser. Without this call a brand-new user lands on an empty
+   * dashboard with "no matches yet" and has to know to go press something else.
+   *
+   * `flushPending` (not `saveImmediately`) because the last keystroke may still
+   * be debounced — otherwise the match run reads a profile that is missing the
+   * skill the user just added.
+   *
+   * Failures are non-fatal. The profile is already saved and the dashboard
+   * renders fine with zero matches, and `/api/match` is idempotent, so the user
+   * can re-run it from the dashboard. We log and continue rather than trapping
+   * someone on a spinner because a catalog sync was down.
+   */
   const handleComplete = async () => {
     setIsFinalizing(true);
     try {
-      await saveImmediately({
-        onboarding_completed: true,
-      });
+      const saved = await flushPending({ onboarding_completed: true });
+      if (!saved) {
+        console.warn('Onboarding profile save did not confirm; still attempting a match run.');
+      }
+
+      try {
+        const res = await fetch('/api/match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!res.ok) {
+          console.warn(`Initial match run returned ${res.status}; the dashboard will offer a retry.`);
+        }
+      } catch (matchError) {
+        console.warn('Initial match run failed:', matchError);
+      }
+
       router.push('/dashboard');
       router.refresh();
     } catch (e) {

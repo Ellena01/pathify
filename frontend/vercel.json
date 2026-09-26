@@ -2,6 +2,13 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
+      "path": "/api/sync",
+      "schedule": "15 5 * * *",
+      "headers": {
+        "Authorization": "Bearer ${CRON_SECRET}"
+      }
+    },
+    {
       "path": "/api/alerts/dispatch",
       "schedule": "0 7 * * *",
       "headers": {

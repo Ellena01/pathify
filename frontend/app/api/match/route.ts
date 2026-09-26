@@ -141,7 +141,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
     .from('user_opportunity_matches')
     .select(
-      'opportunity_url, score, matched_skills, skill_gap, breakdown, explanation, computed_at, opportunities_cache(application_url, title, organization, location, opportunity_type, deadline, verification_status, source_domain)'
+      'opportunity_url, score, matched_skills, skill_gap, breakdown, explanation, computed_at, opportunities_cache(application_url, title, organization, location, opportunity_type, skills_required, deadline, verification_status, source_domain)'
     )
     .eq('user_id', user.id)
     .gte('score', minScore)

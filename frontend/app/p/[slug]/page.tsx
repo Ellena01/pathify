@@ -80,7 +80,7 @@ export default async function PublicPassportPage({ params }: { params: Promise<{
             <span className="text-[#8B5CF6]">Portable Credential</span>
           </div>
           <p className="text-lg sm:text-xl font-mono font-bold text-[#A78BFA] mt-1 break-all tracking-wider">
-            {profile.passport_id || 'PTQ-TALENT-2026'}
+            {profile.passport_id || 'Not yet issued'}
           </p>
 
           <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">

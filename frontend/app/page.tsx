@@ -225,56 +225,51 @@ export default function HomePage() {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold">Live Opportunities Preview</h3>
-            <p className="text-xs text-[#A1A1AA] mt-0.5">Scored against real tech skills with hourly sync</p>
+            <p className="text-xs text-[#A1A1AA] mt-0.5">Real listings from the Pathify catalog, refreshed daily</p>
           </div>
           <Link href="/opportunities" className="text-sm font-semibold text-[#8B5CF6] hover:text-[#A78BFA] flex items-center gap-1">
-            View full catalog (50+) <ArrowRight className="w-4 h-4" />
+            View full catalog <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
 
         <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-5">
-          {(preview.length ? preview : [
-            {
-              title: 'Senior Full-Stack Engineer',
-              organization: 'Andela Global',
-              location: 'Remote (Africa / Global)',
-              opportunity_type: 'Remote Job',
-              skills_required: ['React', 'TypeScript', 'Python'],
-              match_score: 84,
-              verification_status: 'high',
-              application_url: 'https://andela.com'
-            },
-            {
-              title: 'AI/ML Research Fellowship',
-              organization: 'DeepLearning Hub',
-              location: 'Remote',
-              opportunity_type: 'Fellowship',
-              skills_required: ['Python', 'Machine Learning', 'Data Science'],
-              match_score: 72,
-              verification_status: 'high',
-              application_url: 'https://example.com'
-            },
-            {
-              title: 'Open Source AI Hackathon',
-              organization: 'Data Science Nigeria',
-              location: 'Lagos / Hybrid',
-              opportunity_type: 'Hackathon',
-              skills_required: ['Python', 'FastAPI'],
-              match_score: 80,
-              verification_status: 'high',
-              application_url: 'https://datasciencenigeria.org'
-            }
-          ]).map((opp: any, i: number) => {
+          {preview.length === 0 ? (
+            // No invented listings. The previous version rendered three
+            // hardcoded "opportunities" — including `https://example.com` as an
+            // application URL and a fabricated "84% fit" — under a heading
+            // promising live data. An honest empty state is the only correct
+            // thing to show when the catalog has not synced yet.
+            <div className="md:col-span-3 text-center py-12 bg-white/[0.03] border border-dashed border-white/10 rounded-2xl">
+              <p className="text-sm text-[#A1A1AA]">
+                The opportunity catalog is being refreshed. Check back shortly, or browse what is live.
+              </p>
+              <Link
+                href="/opportunities"
+                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#8B5CF6] hover:text-[#A78BFA]"
+              >
+                Open the catalog <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          ) : preview.map((opp: any, i: number) => {
             const detailHref = `/opportunities/${encodeURIComponent(opp.application_url || opp.id || String(i))}`;
+            // `match_score` is the scraper's score against the actor run's
+            // operator, not the visitor's — so it is deliberately NOT shown
+            // here. Fit percentages appear once a visitor has a passport.
+            const skills = Array.isArray(opp.skills_required)
+              ? opp.skills_required
+                  .map((s: any) => (typeof s === 'string' ? s : s?.canonical))
+                  .filter(Boolean)
+                  .slice(0, 3)
+              : [];
 
             return (
               <div
-                key={i}
+                key={opp.application_url || i}
                 className="bg-white/[0.05] border border-white/[0.10] backdrop-blur-lg rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.35)] flex flex-col justify-between hover:border-[#8B5CF6]/30 transition-all"
               >
                 <div>
                   <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-[#A1A1AA] font-semibold mb-1">
-                    <span>{opp.opportunity_type?.replace(/_/g, ' ') || 'Opportunity'}</span>
+                    <span>{String(opp.opportunity_type ?? '').replace(/_/g, ' ') || 'Opportunity'}</span>
                     <span className="flex items-center gap-1 text-[#10B981]">
                       <CheckCircle2 className="w-3 h-3" />
                       {opp.verification_status === 'high' ? 'Verified' : 'Check Details'}
@@ -291,16 +286,23 @@ export default function HomePage() {
                     {opp.organization} · {opp.location}
                   </p>
 
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#8B5CF6]/15 text-[#A78BFA] border border-[#8B5CF6]/20">
-                      {opp.match_score ?? 75}% fit
-                    </span>
-                  </div>
+                  {skills.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {skills.map((s: string) => (
+                        <span
+                          key={s}
+                          className="text-[11px] px-2 py-0.5 rounded-full bg-white/[0.05] text-[#A1A1AA] border border-white/10"
+                        >
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs">
                   <Link href={detailHref} className="text-[#A78BFA] hover:underline font-medium">
-                    Fit breakdown →
+                    View details →
                   </Link>
                   <a
                     href={opp.application_url}
@@ -327,7 +329,7 @@ export default function HomePage() {
               Private by default. A cryptographic profile credential you control. Generate a public slug only when applying or networking.
             </p>
             <p className="font-mono text-xs text-[#A78BFA] bg-black/30 border border-white/10 rounded-lg px-3 py-2 mt-3 truncate">
-              PTQ-NG-2026-XXXX → pathify.app/p/...
+              PYF-8X29K-4 → pathify.app/p/...
             </p>
           </div>
           <Link href="/signup" className="mt-4 text-sm font-bold text-[#8B5CF6] hover:text-[#A78BFA] flex items-center gap-1">
