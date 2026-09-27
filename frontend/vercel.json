@@ -3,17 +3,11 @@
   "crons": [
     {
       "path": "/api/sync",
-      "schedule": "15 5 * * *",
-      "headers": {
-        "Authorization": "Bearer ${CRON_SECRET}"
-      }
+      "schedule": "15 5 * * *"
     },
     {
       "path": "/api/alerts/dispatch",
-      "schedule": "0 7 * * *",
-      "headers": {
-        "Authorization": "Bearer ${CRON_SECRET}"
-      }
+      "schedule": "0 7 * * *"
     }
   ]
 }
