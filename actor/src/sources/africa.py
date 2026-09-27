@@ -1,11 +1,17 @@
 """
-African and pan-African opportunity sources.
+African-first opportunity sources, plus the EU/US boards the org universe hires from.
 
 WHY THIS FILE EXISTS
 --------------------
 Pathify positions itself as African-first, but until now not one crawled source
 was African: the registry was YC, Work at a Startup, Devpost, OpportunityDesk
 and Eventbrite — all US/EU/global. The regional positioning was copy, not data.
+
+The EU/US national boards at the end of the job-board section exist for the
+second reason: investors and organizations search the same catalog for people
+to hire in London, Berlin and New York, and an Africa-only registry answers
+those queries with the remote long tail and nothing local. African coverage is
+still where this file starts and what it is named for.
 
 These modules are deliberately thin. A per-source module earns its place only if
 it knows something the generic extractor cannot infer — a default vertical, an
@@ -60,11 +66,46 @@ welcometothejungle = _regional_job_board(
     "welcometothejungle.com", "Welcome to the Jungle", "Global / Remote"
 )
 
+# --- National boards for the markets the registry skipped ------------------
+# Ghana and Kenya are named in onboarding's geography presets, but every seed
+# URL before this pointed at Nigeria or South Africa: a Ghanaian or Kenyan
+# user's ladder was answered entirely by pan-African aggregators. These are the
+# boards those two markets actually read.
+ghana_jobs = _regional_job_board("ghanajobs.com", "GhanaJobs", "Ghana")
+jobwebghana = _regional_job_board("jobwebghana.com", "GhanaJobWeb", "Ghana")
+brighter_monday_ke = _regional_job_board(
+    "brightermonday.co.ke", "BrighterMonday Kenya", "Kenya"
+)
+careerpoint_kenya = _regional_job_board(
+    "careerpointkenya.com", "CareerPoint Kenya", "Kenya"
+)
+fuzu = _regional_job_board("fuzu.com", "Fuzu", "East Africa")
+ngcareers = _regional_job_board("ngcareers.com", "NGCAREERS", "Nigeria")
+
+# --- EU / US boards --------------------------------------------------------
+# The same catalog backs the investor and org universe, which searches for
+# people to hire in London, Berlin and New York. A registry of African and
+# remote boards only makes those queries return the remote long tail and
+# nothing local, so the two largest hiring markets are now crawlable too.
+eurojobs = _regional_job_board("eurojobs.com", "EuroJobs", "Europe")
+reed = _regional_job_board("reed.co.uk", "Reed", "United Kingdom")
+totaljobs = _regional_job_board("totaljobs.com", "Totaljobs", "United Kingdom")
+builtin = _regional_job_board("builtin.com", "Built In", "United States")
+simplyhired = _regional_job_board("simplyhired.com", "SimplyHired", "United States")
+ziprecruiter = _regional_job_board("ziprecruiter.com", "ZipRecruiter", "United States")
+monster = _regional_job_board("monster.com", "Monster", "Global")
+
 # Regional defaults per board, so a record from Jobberman says "Nigeria" rather
 # than the generic "Global / Remote".
 DOMAIN_DEFAULTS = {
     "jobberman.com": ["https://jobberman.com/jobs"],
     "myjobmag.com": ["https://www.myjobmag.com/jobs/"],
+    "ngcareers.com": ["https://www.ngcareers.com/jobs"],
+    "ghanajobs.com": ["https://www.ghanajobs.com/jobs"],
+    "jobwebghana.com": ["https://www.jobwebghana.com/jobs"],
+    "brightermonday.co.ke": ["https://www.brightermonday.co.ke/jobs"],
+    "careerpointkenya.com": ["https://www.careerpointkenya.com/jobs"],
+    "fuzu.com": ["https://www.fuzu.com/jobs"],
     "africa.careers": ["https://africa.careers/", "https://africa.careers/jobs"],
     "brightercountry.com": ["https://www.brightercountry.com/jobs/"],
     "jobcity.co.za": ["https://www.jobcity.co.za/jobs/"],
@@ -73,6 +114,13 @@ DOMAIN_DEFAULTS = {
     "jumia.com": ["https://www.jumia.com/careers/"],
     "turing.com": ["https://www.turing.com/jobs"],
     "welcometothejungle.com": ["https://www.welcometothejungle.com/en/jobs/"],
+    "eurojobs.com": ["https://www.eurojobs.com/jobs/"],
+    "reed.co.uk": ["https://www.reed.co.uk/jobs"],
+    "totaljobs.com": ["https://www.totaljobs.com/jobs"],
+    "builtin.com": ["https://builtin.com/jobs"],
+    "simplyhired.com": ["https://www.simplyhired.com/search"],
+    "ziprecruiter.com": ["https://www.ziprecruiter.com/jobs"],
+    "monster.com": ["https://www.monster.com/jobs/search"],
 }
 
 

@@ -3,15 +3,50 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  Search, CheckCircle2, Shield, TrendingUp, Users, Zap,
-  ArrowRight, Menu, X, Compass, Sparkles, CheckSquare, ExternalLink
+  Search, CheckCircle2, Shield, Users, Target, Layers,
+  ArrowRight, Compass, MessageSquare, CheckSquare, ExternalLink
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+import type { User } from '@supabase/supabase-js';
+
+type PreviewJob = {
+  id?: string | number;
+  title?: string;
+  organization?: string;
+  location?: string;
+  opportunity_type?: string;
+  verification_status?: string;
+  application_url?: string;
+  skills_required?: Array<string | { canonical?: string }>;
+};
+
+const STEPS = [
+  {
+    n: '01',
+    icon: Layers,
+    title: 'Build your passport',
+    body: 'Add the skills you actually use, the work you want next, and where you want to do it. It takes about two minutes and stays private until you decide to share it.',
+    tags: ['Skills', 'Goals', 'Location'],
+  },
+  {
+    n: '02',
+    icon: Target,
+    title: 'Get matched from every source at once',
+    body: 'We check job boards, fellowship lists, hackathons, and grant pages every hour, then score each listing against your profile so you know where you stand.',
+    tags: ['Hourly sync', '4-factor score', 'Skill gaps'],
+  },
+  {
+    n: '03',
+    icon: CheckSquare,
+    title: 'Track what happens next',
+    body: 'Move each opportunity from wishlist to applied to interviewing to offer. One list instead of a spreadsheet you stop updating after a week.',
+    tags: ['Wishlist', 'Applied', 'Offer'],
+  },
+];
 
 export default function HomePage() {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [authUser, setAuthUser] = useState<any>(null);
-  const [preview, setPreview] = useState<any[]>([]);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [preview, setPreview] = useState<PreviewJob[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const supabase = createClient();
 
@@ -35,357 +70,406 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080414] bg-[radial-gradient(ellipse_at_top,_#3b107c4D_0%,_#080414_50%,_#04020a_100%)] text-[#F5F5F7] selection:bg-[#8B5CF6]/30">
-      
+    <div className="min-h-screen bg-zinc-950 text-white selection:bg-violet-500/30">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#080414]/70 backdrop-blur-xl" style={{ paddingTop: 'env(safe-area-inset-top)' } as any}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[64px] sm:min-h-[72px] flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-3 shrink-0">
-            <div className="text-[#8B5CF6]">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-7 h-7 drop-shadow-[0_0_8px_rgba(139,92,246,0.3)]">
-                <circle cx="6" cy="18" r="2"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="12" r="2"/><path d="M8 17.5L16 13"/><path d="M8 6.5L16 11"/>
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-[20px] sm:text-[22px] font-black tracking-tighter bg-gradient-to-r from-[#F5F5F7] to-[#8B5CF6] bg-clip-text text-transparent leading-none">PATHIFY</h1>
-              <span className="text-[10px] tracking-[0.18em] uppercase text-[#A1A1AA]">Opportunity Intelligence</span>
-            </div>
+      <header className="safe-top sticky top-0 z-50 border-b border-white/10 bg-zinc-950/70 backdrop-blur-xl">
+        <div className="mx-auto flex min-h-16 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
+          <Link href="/" className="flex shrink-0 items-center gap-2.5">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              className="h-6 w-6 text-violet-400"
+              aria-hidden="true"
+            >
+              <circle cx="6" cy="18" r="2" />
+              <circle cx="6" cy="6" r="2" />
+              <circle cx="18" cy="12" r="2" />
+              <path d="M8 17.5L16 13" />
+              <path d="M8 6.5L16 11" />
+            </svg>
+            <span className="text-base font-semibold tracking-tight text-white">Pathify</span>
           </Link>
 
-          {/* Desktop nav */}
-          <nav className="hidden sm:flex items-center gap-6 text-sm">
-            <Link href="/opportunities" className="text-[#A1A1AA] hover:text-white flex items-center gap-1.5 transition-colors">
-              <Compass className="w-4 h-4 text-[#8B5CF6]" /> Opportunities
+          <nav className="flex items-center gap-1 text-sm sm:gap-2">
+            <Link
+              href="/opportunities"
+              className="hidden rounded-lg px-3 py-2 text-zinc-400 transition-colors hover:text-white sm:inline-flex"
+            >
+              Opportunities
             </Link>
-            <Link href="/dashboard" className="text-[#A1A1AA] hover:text-white transition-colors">Dashboard</Link>
-            <Link href="/org" className="text-[#A1A1AA] hover:text-white transition-colors">For Organizations</Link>
-            
             {authUser ? (
-              <Link href="/dashboard" className="bg-white/[0.06] border border-white/[0.10] hover:bg-white/10 text-white px-4 py-2 rounded-full text-sm font-medium transition-colors">
-                Open Dashboard
+              <Link
+                href="/dashboard"
+                className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 font-medium text-white transition-colors hover:border-violet-500/40"
+              >
+                Dashboard
               </Link>
             ) : (
-              <div className="flex items-center gap-3">
-                <Link href="/login" className="text-sm text-[#A1A1AA] hover:text-white px-3 py-1.5">Sign in</Link>
-                <Link href="/signup" className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all">
-                  Create free account
+              <>
+                <Link
+                  href="/login"
+                  className="rounded-lg px-3 py-2 text-zinc-400 transition-colors hover:text-white"
+                >
+                  Log in
                 </Link>
-              </div>
+                <Link
+                  href="/signup"
+                  className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 font-medium text-white transition-colors hover:border-violet-500/40"
+                >
+                  Join
+                </Link>
+              </>
             )}
           </nav>
-
-          {/* Mobile hamburger */}
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="sm:hidden p-2 -mr-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-white/5">
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
         </div>
-
-        {/* Mobile drawer */}
-        {mobileOpen && (
-          <div className="sm:hidden border-t border-white/[0.06] bg-[#080414]/95 backdrop-blur-xl px-4 py-4 space-y-3">
-            <Link href="/opportunities" onClick={() => setMobileOpen(false)} className="flex items-center justify-between py-2 text-sm border-b border-white/5 text-[#8B5CF6]">
-              <span>Browse Opportunities</span> <Compass className="w-4 h-4" />
-            </Link>
-            <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="flex items-center justify-between py-2 text-sm border-b border-white/5">
-              <span>Dashboard</span> <ArrowRight className="w-4 h-4 text-[#8B5CF6]" />
-            </Link>
-            <Link href="/org" onClick={() => setMobileOpen(false)} className="flex items-center justify-between py-2 text-sm border-b border-white/5">
-              <span>For Organizations</span> <Users className="w-4 h-4 text-[#8B8B96]" />
-            </Link>
-            {authUser ? (
-              <Link href="/dashboard" onClick={() => setMobileOpen(false)} className="block bg-white/[0.06] border border-white/10 text-center py-3 rounded-full font-medium">
-                Open Dashboard
-              </Link>
-            ) : (
-              <Link href="/signup" onClick={() => setMobileOpen(false)} className="block bg-[#8B5CF6] text-center py-3 rounded-full font-bold">
-                Create free account
-              </Link>
-            )}
-          </div>
-        )}
       </header>
 
       {/* Hero */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-20 pb-10">
-        <div className="max-w-3xl">
-          <p className="inline-flex items-center gap-2 text-xs tracking-widest uppercase text-[#A78BFA] bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 rounded-full px-3.5 py-1.5">
-            <span className="w-1.5 h-1.5 bg-[#10B981] rounded-full animate-pulse" />
-            Opportunity Intelligence — African-first, globally connected
+      <section className="relative overflow-hidden">
+        <div
+          aria-hidden="true"
+          className="pathify-glow pointer-events-none absolute inset-x-0 top-0 h-[640px]"
+        />
+        <div className="relative mx-auto max-w-6xl px-5 py-24 sm:px-8 sm:py-32">
+          <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            50+ verified sources, refreshed every hour
           </p>
 
-          <h2 className="mt-5 text-[32px] sm:text-[46px] font-black tracking-tight leading-[1.05]">
-            Find tech jobs, fellowships & funding{' '}
-            <span className="bg-gradient-to-r from-[#A78BFA] via-[#C084FC] to-[#8B5CF6] bg-clip-text text-transparent">
-              matched to your exact skills
-            </span>
-          </h2>
+          <h1 className="mt-6 max-w-3xl text-4xl font-semibold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl">
+            Where your skills meet{' '}
+            <span className="text-violet-400">the right opportunity.</span>
+          </h1>
 
-          <p className="mt-4 text-[16px] sm:text-[18px] leading-relaxed text-[#A1A1AA] max-w-2xl">
-            Pathify continuously monitors top verified global sources, calculates 4-factor compatibility scores, and highlights exactly what to learn next to bridge the gap.
+          <p className="mt-6 max-w-2xl text-base leading-relaxed text-zinc-400 sm:text-lg">
+            Add your skills, goals, and location once. Pathify checks jobs, fellowships, and
+            funding from sources you already trust, scores each one against your profile, and
+            tells you what to learn next.
           </p>
 
-          <div className="mt-8 flex flex-col sm:flex-row gap-3.5">
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               href="/signup"
-              className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white px-7 py-3.5 rounded-full font-bold text-sm text-center shadow-[0_8px_32px_rgba(139,92,246,0.35)] transition-all"
+              className="group inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-violet-500 px-6 text-sm font-semibold text-white transition-colors hover:bg-violet-400"
             >
-              Create your Pathify Passport
+              Get Started
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
             <Link
               href="/opportunities"
-              className="bg-white/[0.06] border border-white/[0.12] hover:bg-white/10 text-white px-7 py-3.5 rounded-full font-medium text-sm text-center flex items-center justify-center gap-2 transition-all"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-6 text-sm font-medium text-white transition-colors hover:border-violet-500/40"
             >
-              <Compass className="w-4 h-4 text-[#A78BFA]" />
-              Explore All Opportunities
+              <Compass className="h-4 w-4 text-violet-400" />
+              Browse opportunities
             </Link>
           </div>
 
-          <p className="mt-4 text-xs text-[#8B8B96]">
-            Private by default · Portable Passport ID · Verified data sources updated hourly
+          <p className="mt-4 text-sm text-zinc-500">
+            Free to start. Your passport stays private until you share it.
           </p>
-        </div>
 
-        {/* Hero Search Box */}
-        <div className="mt-10 max-w-2xl bg-white/[0.05] border border-white/[0.10] backdrop-blur-lg rounded-2xl p-4 shadow-2xl">
-          <p className="text-xs tracking-widest uppercase text-[#A1A1AA] mb-2 font-semibold">
-            Search 50+ Live Verified Opportunities
-          </p>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8B8B96]" />
-              <input
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                placeholder="e.g. React, Fellowship Lagos, Python remote, Hackathon"
-                className="w-full bg-black/40 border border-white/10 rounded-full pl-10 pr-4 h-12 text-sm text-white placeholder-[#8B8B96] focus:outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#8B5CF6]/20 transition-all"
-              />
-            </div>
-            <button
-              onClick={handleSearch}
-              className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white px-6 h-12 inline-flex items-center rounded-full font-bold text-sm shrink-0 shadow-[0_0_16px_rgba(139,92,246,0.3)] transition-all"
-            >
-              Find <ArrowRight className="w-4 h-4 ml-1.5" />
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-3 text-xs text-[#8B8B96]">
-            <span>Trending:</span>
-            {['Remote Jobs', 'Fellowships', 'Lagos', 'Python', 'Machine Learning'].map(t => (
+          {/* Search */}
+          <div className="mt-12 max-w-2xl rounded-2xl border border-white/10 bg-zinc-900/40 p-3 backdrop-blur-xl sm:p-4">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  placeholder="React, Python remote, Fellowship Lagos…"
+                  aria-label="Search opportunities"
+                  className="h-11 w-full rounded-lg border border-white/10 bg-zinc-950/60 pl-10 pr-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                />
+              </div>
               <button
-                key={t}
-                onClick={() => { window.location.href = `/opportunities?q=${encodeURIComponent(t)}`; }}
-                className="text-[#A1A1AA] hover:text-[#A78BFA] transition-colors underline"
+                onClick={handleSearch}
+                className="group inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-white px-5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-200"
               >
-                {t}
+                Search
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
               </button>
-            ))}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+              <span>Popular:</span>
+              {['Remote Jobs', 'Fellowships', 'Lagos', 'Python', 'Machine Learning'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    window.location.href = `/opportunities?q=${encodeURIComponent(t)}`;
+                  }}
+                  className="transition-colors hover:text-violet-400"
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <h3 className="text-xs tracking-widest uppercase text-[#A1A1AA] font-bold">
-          How Pathify Delivers Intelligent Matching
-        </h3>
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              icon: Users,
-              title: 'Your Private Passport',
-              desc: 'Store 3–8 skills, career goals, and country. Stays private until you decide to share with mentors or recruiters.'
-            },
-            {
-              icon: Zap,
-              title: 'Hourly Web Scrape',
-              desc: 'We monitor verified sources — YC Jobs, Devpost, OpportunityDesk, Google Summer of Code, and major tech foundations.'
-            },
-            {
-              icon: TrendingUp,
-              title: '4-Factor Fit Analysis',
-              desc: 'Skills 60%, Location 20%, Career Goals 10%, Experience 10%. See what you have and what to learn next.'
-            },
-            {
-              icon: CheckSquare,
-              title: 'Integrated Tracker',
-              desc: 'Move opportunities across Wishlist, Applied, Interviewing, and Offer stages without messy spreadsheets.'
-            },
-          ].map(s => (
-            <div key={s.title} className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-5 hover:border-white/15 transition-colors">
-              <s.icon className="w-6 h-6 text-[#8B5CF6] mb-3" />
-              <p className="font-semibold text-base">{s.title}</p>
-              <p className="text-sm text-[#A1A1AA] leading-relaxed mt-1.5">{s.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Live preview */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-bold">Live Opportunities Preview</h3>
-            <p className="text-xs text-[#A1A1AA] mt-0.5">Real listings from the Pathify catalog, refreshed daily</p>
+      {/* 3-step editorial flow */}
+      <section className="border-t border-white/10">
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+          <div className="max-w-2xl">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-violet-400">
+              How it works
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Three steps, about five minutes.
+            </h2>
+            <p className="mt-3 leading-relaxed text-zinc-400">
+              No questionnaire marathon. You tell us what you can do and what you want, and the
+              rest runs on its own from there.
+            </p>
           </div>
-          <Link href="/opportunities" className="text-sm font-semibold text-[#8B5CF6] hover:text-[#A78BFA] flex items-center gap-1">
-            View full catalog <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
 
-        <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-5">
-          {preview.length === 0 ? (
-            // No invented listings. The previous version rendered three
-            // hardcoded "opportunities" — including `https://example.com` as an
-            // application URL and a fabricated "84% fit" — under a heading
-            // promising live data. An honest empty state is the only correct
-            // thing to show when the catalog has not synced yet.
-            <div className="md:col-span-3 text-center py-12 bg-white/[0.03] border border-dashed border-white/10 rounded-2xl">
-              <p className="text-sm text-[#A1A1AA]">
-                The opportunity catalog is being refreshed. Check back shortly, or browse what is live.
-              </p>
-              <Link
-                href="/opportunities"
-                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#8B5CF6] hover:text-[#A78BFA]"
+          <ol className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {STEPS.map(s => (
+              <li
+                key={s.n}
+                className="group rounded-2xl border border-white/10 bg-zinc-900/40 p-6 backdrop-blur-xl transition-colors hover:border-violet-500/40"
               >
-                Open the catalog <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
-          ) : preview.map((opp: any, i: number) => {
-            const detailHref = `/opportunities/${encodeURIComponent(opp.application_url || opp.id || String(i))}`;
-            // `match_score` is the scraper's score against the actor run's
-            // operator, not the visitor's — so it is deliberately NOT shown
-            // here. Fit percentages appear once a visitor has a passport.
-            const skills = Array.isArray(opp.skills_required)
-              ? opp.skills_required
-                  .map((s: any) => (typeof s === 'string' ? s : s?.canonical))
-                  .filter(Boolean)
-                  .slice(0, 3)
-              : [];
-
-            return (
-              <div
-                key={opp.application_url || i}
-                className="bg-white/[0.05] border border-white/[0.10] backdrop-blur-lg rounded-2xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.35)] flex flex-col justify-between hover:border-[#8B5CF6]/30 transition-all"
-              >
-                <div>
-                  <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-[#A1A1AA] font-semibold mb-1">
-                    <span>{String(opp.opportunity_type ?? '').replace(/_/g, ' ') || 'Opportunity'}</span>
-                    <span className="flex items-center gap-1 text-[#10B981]">
-                      <CheckCircle2 className="w-3 h-3" />
-                      {opp.verification_status === 'high' ? 'Verified' : 'Check Details'}
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs tracking-widest text-violet-400">{s.n}</span>
+                  <s.icon className="h-5 w-5 text-zinc-500 transition-colors group-hover:text-violet-400" />
+                </div>
+                <h3 className="mt-5 text-lg font-medium leading-snug text-white">{s.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-400">{s.body}</p>
+                <div className="mt-5 flex flex-wrap gap-1.5">
+                  {s.tags.map(t => (
+                    <span
+                      key={t}
+                      className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-zinc-400"
+                    >
+                      {t}
                     </span>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* Live opportunities preview */}
+      <section className="border-t border-white/10">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
+                Live opportunities
+              </h2>
+              <p className="mt-1 text-sm text-zinc-400">
+                Real listings from the Pathify catalog, refreshed daily
+              </p>
+            </div>
+            <Link
+              href="/opportunities"
+              className="group inline-flex items-center gap-1.5 text-sm font-medium text-violet-400 transition-colors hover:text-violet-300"
+            >
+              View full catalog
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+            </Link>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {preview.length === 0 ? (
+              // No invented listings. The previous version rendered three
+              // hardcoded "opportunities" — including `https://example.com` as an
+              // application URL and a fabricated "84% fit" — under a heading
+              // promising live data. An honest empty state is the only correct
+              // thing to show when the catalog has not synced yet.
+              <div className="rounded-2xl border border-dashed border-white/10 bg-zinc-900/40 py-14 text-center md:col-span-3">
+                <p className="text-sm text-zinc-400">
+                  The opportunity catalog is being refreshed. Check back shortly, or browse what is
+                  live.
+                </p>
+                <Link
+                  href="/opportunities"
+                  className="group mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-violet-400 transition-colors hover:text-violet-300"
+                >
+                  Open the catalog
+                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                </Link>
+              </div>
+            ) : preview.map((opp, i) => {
+              const detailHref = `/opportunities/${encodeURIComponent(opp.application_url || opp.id || String(i))}`;
+              // `match_score` is the scraper's score against the actor run's
+              // operator, not the visitor's — so it is deliberately NOT shown
+              // here. Fit percentages appear once a visitor has a passport.
+              const skills: string[] = Array.isArray(opp.skills_required)
+                ? opp.skills_required
+                    .map((s) => (typeof s === 'string' ? s : s?.canonical))
+                    .filter((s): s is string => Boolean(s))
+                    .slice(0, 3)
+                : [];
+
+              return (
+                <div
+                  key={opp.application_url || i}
+                  className="flex flex-col justify-between rounded-2xl border border-white/10 bg-zinc-900/40 p-6 backdrop-blur-xl transition-colors hover:border-violet-500/40"
+                >
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                      <span>{String(opp.opportunity_type ?? '').replace(/_/g, ' ') || 'Opportunity'}</span>
+                      <span className="flex items-center gap-1 text-emerald-400">
+                        <CheckCircle2 className="h-3 w-3" />
+                        {opp.verification_status === 'high' ? 'Verified' : 'Check Details'}
+                      </span>
+                    </div>
+
+                    <Link href={detailHref} className="group mt-2 block">
+                      <p className="line-clamp-2 text-base font-medium text-white transition-colors group-hover:text-violet-400">
+                        {opp.title}
+                      </p>
+                    </Link>
+
+                    <p className="mt-1.5 text-sm text-zinc-400">
+                      {opp.organization} · {opp.location}
+                    </p>
+
+                    {skills.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {skills.map((s: string) => (
+                          <span
+                            key={s}
+                            className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-zinc-400"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  <Link href={detailHref} className="block group">
-                    <p className="font-semibold text-base mt-1 line-clamp-2 group-hover:text-[#A78BFA] transition-colors">
-                      {opp.title}
-                    </p>
-                  </Link>
-
-                  <p className="text-xs text-[#A1A1AA] mt-1">
-                    {opp.organization} · {opp.location}
-                  </p>
-
-                  {skills.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {skills.map((s: string) => (
-                        <span
-                          key={s}
-                          className="text-[11px] px-2 py-0.5 rounded-full bg-white/[0.05] text-[#A1A1AA] border border-white/10"
-                        >
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-sm">
+                    <Link
+                      href={detailHref}
+                      className="font-medium text-violet-400 transition-colors hover:text-violet-300"
+                    >
+                      View details
+                    </Link>
+                    <a
+                      href={opp.application_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 font-medium text-white transition-colors hover:text-violet-400"
+                    >
+                      Apply
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
                 </div>
-
-                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs">
-                  <Link href={detailHref} className="text-[#A78BFA] hover:underline font-medium">
-                    View details →
-                  </Link>
-                  <a
-                    href={opp.application_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-white hover:text-[#A78BFA] inline-flex items-center gap-1 font-semibold"
-                  >
-                    Apply <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      {/* Feature Teasers */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        <div className="bg-white/[0.05] border border-white/[0.10] backdrop-blur-lg rounded-2xl p-6 flex flex-col justify-between">
-          <div>
-            <Shield className="w-6 h-6 text-[#8B5CF6] mb-2" />
-            <h4 className="font-bold text-base">Verified Pathify Passport</h4>
-            <p className="text-sm text-[#A1A1AA] leading-relaxed mt-2">
-              Private by default. A cryptographic profile credential you control. Generate a public slug only when applying or networking.
+      {/* Feature teasers */}
+      <section className="border-t border-white/10">
+        <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
+          <div className="max-w-2xl">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-violet-400">
+              What you get
             </p>
-            <p className="font-mono text-xs text-[#A78BFA] bg-black/30 border border-white/10 rounded-lg px-3 py-2 mt-3 truncate">
-              PYF-8X29K-4 → pathify.app/p/...
-            </p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Everything sits behind one profile.
+            </h2>
           </div>
-          <Link href="/signup" className="mt-4 text-sm font-bold text-[#8B5CF6] hover:text-[#A78BFA] flex items-center gap-1">
-            Claim your passport <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
 
-        <div className="bg-white/[0.04] border border-white/[0.08] backdrop-blur-lg rounded-2xl p-6 flex flex-col justify-between">
-          <div>
-            <Sparkles className="w-6 h-6 text-[#10B981] mb-2" />
-            <h4 className="font-bold text-base">Gemini AI Navigator</h4>
-            <p className="text-sm text-[#A1A1AA] leading-relaxed mt-2">
-              Ask in conversational language. The agent executes real database lookups and returns grounded opportunities with zero hallucination.
-            </p>
-            <p className="text-xs bg-black/25 border border-white/5 rounded-lg p-3 mt-3 text-[#A1A1AA]">
-              “Remote Python fellowships for Nigerian developers”
-            </p>
-          </div>
-          <Link href="/dashboard" className="mt-4 text-sm font-bold text-[#8B5CF6] hover:text-[#A78BFA] flex items-center gap-1">
-            Try Navigator in Dashboard <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+          <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="group rounded-2xl border border-white/10 bg-zinc-900/40 p-6 backdrop-blur-xl transition-colors hover:border-violet-500/40">
+              <Shield className="h-5 w-5 text-violet-400" />
+              <h3 className="mt-4 text-base font-medium text-white">A passport you control</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                Your profile is private by default. Generate a public link only when you are
+                applying or networking, and take it down whenever you want.
+              </p>
+              <p className="mt-4 truncate rounded-lg border border-white/10 bg-zinc-950/60 px-3 py-2 font-mono text-xs text-violet-400">
+                PYF-8X29K-4 → pathify.app/p/…
+              </p>
+              <Link
+                href="/signup"
+                className="group/link mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-violet-400 transition-colors hover:text-violet-300"
+              >
+                Claim your passport
+                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover/link:translate-x-0.5" />
+              </Link>
+            </div>
 
-        <div className="bg-white/[0.04] border border-white/[0.08] backdrop-blur-lg rounded-2xl p-6 flex flex-col justify-between">
-          <div>
-            <CheckSquare className="w-6 h-6 text-[#A78BFA] mb-2" />
-            <h4 className="font-bold text-base">Application Tracker</h4>
-            <p className="text-sm text-[#A1A1AA] leading-relaxed mt-2">
-              Track opportunities through Wishlist, Applied, Interviewing, and Offer stages. Save to your profile in one click.
-            </p>
-            <p className="text-xs bg-black/25 border border-white/5 rounded-lg p-3 mt-3 text-[#A1A1AA]">
-              Saved jobs persist securely to Supabase with real-time sync.
-            </p>
+            <div className="group rounded-2xl border border-white/10 bg-zinc-900/40 p-6 backdrop-blur-xl transition-colors hover:border-violet-500/40">
+              <MessageSquare className="h-5 w-5 text-violet-400" />
+              <h3 className="mt-4 text-base font-medium text-white">Navigator</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                Ask in plain language. Navigator runs the search against real rows in the database
+                and comes back with listings and sources, not guesses.
+              </p>
+              <p className="mt-4 rounded-lg border border-white/10 bg-zinc-950/60 p-3 text-xs leading-relaxed text-zinc-400">
+                “Remote Python fellowships for Nigerian developers”
+              </p>
+              <Link
+                href="/dashboard"
+                className="group/link mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-violet-400 transition-colors hover:text-violet-300"
+              >
+                Open Navigator
+                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover/link:translate-x-0.5" />
+              </Link>
+            </div>
+
+            <div className="group rounded-2xl border border-white/10 bg-zinc-900/40 p-6 backdrop-blur-xl transition-colors hover:border-violet-500/40">
+              <CheckSquare className="h-5 w-5 text-violet-400" />
+              <h3 className="mt-4 text-base font-medium text-white">Application tracker</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                Wishlist, applied, interviewing, offer. Every move saves to your account, so the
+                tracker is the same on your laptop and your phone.
+              </p>
+              <p className="mt-4 rounded-lg border border-white/10 bg-zinc-950/60 p-3 text-xs leading-relaxed text-zinc-400">
+                Saved jobs sync to your profile the moment you move them.
+              </p>
+              <Link
+                href="/dashboard"
+                className="group/link mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-violet-400 transition-colors hover:text-violet-300"
+              >
+                View the tracker
+                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover/link:translate-x-0.5" />
+              </Link>
+            </div>
           </div>
-          <Link href="/dashboard" className="mt-4 text-sm font-bold text-[#8B5CF6] hover:text-[#A78BFA] flex items-center gap-1">
-            View Application Tracker <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/[0.06] mt-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-sm text-[#A1A1AA]">
-          <p className="font-medium text-white">Pathify — Opportunity Intelligence for African & Emerging Tech Talent</p>
-          <p className="text-xs text-[#8B8B96] mt-1">
-            Curated from verified sources. Updated hourly. Your profile stays private until you choose to share.
-          </p>
-          <div className="flex justify-center gap-4 text-xs mt-3">
-            <Link href="/opportunities" className="text-[#8B5CF6] hover:underline">Discovery Catalog</Link>
-            <span>·</span>
-            <Link href="/dashboard" className="text-[#8B5CF6] hover:underline">Dashboard & Tracker</Link>
-            <span>·</span>
-            <Link href="/org" className="text-[#8B5CF6] hover:underline">For Organizations</Link>
-            <span>·</span>
-            <Link href="/login" className="text-[#8B5CF6] hover:underline">Sign In</Link>
+      <footer className="border-t border-white/10">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-5 py-10 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <div>
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-violet-400" />
+              <span className="text-sm font-medium text-white">Pathify</span>
+            </div>
+            <p className="mt-2 text-sm text-zinc-400">
+              Jobs, fellowships, and funding for African and emerging tech talent — sourced from
+              places worth trusting.
+            </p>
           </div>
+          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-zinc-400">
+            <Link href="/opportunities" className="transition-colors hover:text-white">
+              Opportunities
+            </Link>
+            <Link href="/org" className="transition-colors hover:text-white">
+              For organizations
+            </Link>
+            <Link href="/dashboard" className="transition-colors hover:text-white">
+              Dashboard
+            </Link>
+            <Link href="/login" className="transition-colors hover:text-white">
+              Log in
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>

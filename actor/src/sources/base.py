@@ -28,6 +28,11 @@ _TYPE_MARKERS = (
 )
 
 #: Domains that are unambiguously one vertical, used as a fallback.
+#:
+#: Invariant, checked by `tests.test_actor`: every host in `sources.REGISTRY`
+#: has an entry here. The registry is what decides which pages get crawled;
+#: this map is what decides which ladder those pages land in, and a missing
+#: entry does not fail loudly — `infer_type` silently answers "jobs_remote".
 DOMAIN_TO_TYPE = {
     "ycombinator.com": "jobs_remote",
     "workatastartup.com": "jobs_remote",
@@ -54,13 +59,53 @@ DOMAIN_TO_TYPE = {
     "turing.com": "jobs_remote",
     "andela.com": "jobs_remote",
     "welcometothejungle.com": "jobs_remote",
-    "jobberman.com": "jobs_remote",
-    "myjobmag.com": "jobs_remote",
+    "jobberman.com": "jobs_onsite",
+    "myjobmag.com": "jobs_onsite",
     "brightercountry.com": "jobs_remote",
     "droneacademy.com": "internships",
     "codebar.io": "internships",
     "nairabotics.com": "internships",
     "inecoonline.com": "internships",
+
+    # National boards the registry crawls but this map did not cover, so every
+    # bare listing on them silently fell through to "jobs_remote". A Ghanaian
+    # or Kenyan vacancy mis-typed as remote is what put it in the wrong ladder
+    # step upstream, and the same holds for the UK/US boards.
+    "jobcity.co.za": "jobs_onsite",
+    "careers24.com": "jobs_onsite",
+    "pnet.co.za": "jobs_onsite",
+    "jumia.com": "jobs_remote",
+    "ghanajobs.com": "jobs_onsite",
+    "jobwebghana.com": "jobs_onsite",
+    "brightermonday.co.ke": "jobs_onsite",
+    "careerpointkenya.com": "jobs_onsite",
+    "fuzu.com": "jobs_onsite",
+    "ngcareers.com": "jobs_onsite",
+    "reed.co.uk": "jobs_onsite",
+    "totaljobs.com": "jobs_onsite",
+    "eurojobs.com": "jobs_onsite",
+    "builtin.com": "jobs_hybrid",
+    "simplyhired.com": "jobs_remote",
+    "ziprecruiter.com": "jobs_remote",
+    "monster.com": "jobs_remote",
+
+    # Fellowships, grants, events and the remaining remote aggregators that
+    # were reachable as seeds but untyped here.
+    "africanleadership.net": "fellowships",
+    "mastercardfdn.org": "scholarships",
+    "moove.africa": "hackathons",
+    "flare.co.za": "grants",
+    "blackenterprise.com": "grants",
+    "tolu.co": "grants",
+    "techcrunch.com": "startup_funding",
+    "disrupt-africa.com": "startup_funding",
+    "africa.tech": "events",
+    "remote-r.com": "jobs_remote",
+    "justremote.com": "jobs_remote",
+    "otta.com": "jobs_remote",
+    "wellfound.com": "jobs_remote",
+    "datahub.io": "jobs_remote",
+    "undocumented.dev": "jobs_remote",
 }
 
 

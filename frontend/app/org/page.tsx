@@ -29,8 +29,8 @@ export default function OrgPage() {
   useEffect(() => { fetchTalent(); }, []);
 
   return (
-    <div className="min-h-screen bg-[#080414] bg-[radial-gradient(ellipse_at_top,_#3b107c4D_0%,_#080414_50%,_#04020a_100%)] text-[#F5F5F7]">
-      <header className="border-b border-white/[0.08] bg-[#080414]/70 backdrop-blur-xl">
+    <div className="min-h-screen bg-zinc-950 pathify-glow text-[#F5F5F7]">
+      <header className="border-b border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <Link href="/" className="flex items-center gap-2 text-[#8B5CF6] font-black tracking-tighter text-sm">← PATHIFY</Link>
           <span className="text-xs sm:text-sm text-[#A1A1AA]">For Organizations · Preview — sample profiles only</span>

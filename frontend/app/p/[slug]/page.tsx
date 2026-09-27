@@ -29,7 +29,7 @@ export default async function PublicPassportPage({ params }: { params: Promise<{
 
   if (!profile || errorMsg) {
     return (
-      <div className="min-h-screen bg-[#080414] bg-[radial-gradient(ellipse_at_top,_#3b107c4D_0%,_#080414_50%,_#04020a_100%)] text-[#F5F5F7] flex items-center justify-center p-4 sm:p-6">
+      <div className="min-h-screen bg-zinc-950 pathify-glow text-[#F5F5F7] flex items-center justify-center p-4 sm:p-6">
         <div className="bg-white/[0.05] border border-white/[0.10] backdrop-blur-lg rounded-2xl p-6 sm:p-8 max-w-md w-full text-center shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
           <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-3">
             <Shield className="w-6 h-6 text-[#8B8B96]" />
@@ -47,7 +47,7 @@ export default async function PublicPassportPage({ params }: { params: Promise<{
   }
 
   return (
-    <div className="min-h-screen bg-[#080414] bg-[radial-gradient(ellipse_at_top,_#3b107c4D_0%,_#080414_50%,_#04020a_100%)] text-[#F5F5F7] p-4 sm:p-6 flex items-center justify-center">
+    <div className="min-h-screen bg-zinc-950 pathify-glow text-[#F5F5F7] p-4 sm:p-6 flex items-center justify-center">
       <div className="w-full max-w-lg bg-white/[0.05] backdrop-blur-xl border border-white/[0.12] rounded-3xl p-6 sm:p-8 shadow-[0_16px_48px_rgba(0,0,0,0.5)]">
         
         {/* Brand & Badge Header */}

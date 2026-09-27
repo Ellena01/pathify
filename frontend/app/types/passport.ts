@@ -1,3 +1,5 @@
+import type { AccountType } from '@/lib/universe';
+
 export interface Education {
   institution?: string;
   program?: string;
@@ -45,6 +47,17 @@ export interface PassportMetadata {
   preferences?: OpportunityPreferences;
   interests?: string[];
   bio?: string;
+  /**
+   * Self-declared seniority band from onboarding:
+   * `student | entry | mid | senior | expert`.
+   *
+   * Used as the experience factor's fallback when the profile has no
+   * `experience[]` history — an honest "I am a mid-level engineer" is more
+   * useful than a null, and far more useful than inventing a work history.
+   */
+  experience_level?: string;
+  /** Selected during the individual onboarding domain step. */
+  domain?: string;
 }
 
 export interface CanonicalPassport {
@@ -65,6 +78,20 @@ export interface CanonicalPassport {
   jurisdiction?: string | null;
   /** Grants access to /admin. Never trusted from the client — see app/(app)/admin. */
   isAdmin?: boolean;
+
+  /**
+   * Which universe this account belongs to. Written at signup from the role
+   * picker and validated by `chk_user_profiles_account_type`; treated as
+   * `'individual'` whenever absent so an unmigrated database behaves like the
+   * talent universe instead of failing closed.
+   */
+  account_type?: AccountType | null;
+  /** Organisation side of the two-universe model. Null for talent accounts. */
+  org_name?: string | null;
+  org_website?: string | null;
+  org_focus?: string[];
+  org_skills?: string[];
+  org_geo?: string[];
 }
 
 /**

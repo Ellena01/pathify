@@ -54,6 +54,17 @@ export function useProfileAutosave(options: UseAutosaveOptions = {}) {
       if (updates.onboarding_completed !== undefined) payload.onboarding_completed = updates.onboarding_completed;
       if (updates.metadata !== undefined) payload.metadata = updates.metadata;
 
+      // Universe columns. `account_type` is only ever written from the signup
+      // role picker or onboarding, but the whitelist is what keeps a stray
+      // Partial from attempting an update to an arbitrary column name — which
+      // PostgREST rejects for the whole batch, discarding the real edit with it.
+      if (updates.account_type !== undefined) payload.account_type = updates.account_type;
+      if (updates.org_name !== undefined) payload.org_name = updates.org_name;
+      if (updates.org_website !== undefined) payload.org_website = updates.org_website;
+      if (updates.org_focus !== undefined) payload.org_focus = updates.org_focus;
+      if (updates.org_skills !== undefined) payload.org_skills = updates.org_skills;
+      if (updates.org_geo !== undefined) payload.org_geo = updates.org_geo;
+
       const { data, error } = await supabase
         .from('user_profiles')
         .update(payload)
@@ -66,6 +77,16 @@ export function useProfileAutosave(options: UseAutosaveOptions = {}) {
         if (error.message.includes('metadata') || error.message.includes('onboarding_completed') || error.message.includes('column')) {
           delete payload.metadata;
           delete payload.onboarding_completed;
+          // Columns added by newer migrations. On an unmigrated database the
+          // whole update is rejected for the unknown name, so retrying without
+          // them must strip every one — otherwise the retry fails identically
+          // and the user's edit is lost twice over.
+          delete payload.account_type;
+          delete payload.org_name;
+          delete payload.org_website;
+          delete payload.org_focus;
+          delete payload.org_skills;
+          delete payload.org_geo;
           const { data: retryData, error: retryError } = await supabase
             .from('user_profiles')
             .update(payload)

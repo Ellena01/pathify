@@ -548,7 +548,7 @@ function OpportunitiesInner() {
 export default function OpportunitiesPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#080414] flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
         <div className="text-[#A1A1AA] text-sm">Loading opportunities…</div>
       </div>
     }>

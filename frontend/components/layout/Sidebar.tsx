@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LogOut, ChevronLeft, ChevronRight, Shield } from 'lucide-react';
+import { LogOut, ChevronLeft, ChevronRight, Shield, Building2 } from 'lucide-react';
 import { useUserStore } from '@/app/store';
 import { createClient } from '@/utils/supabase/client';
 import { calculateProfileCompleteness } from '@/app/types/passport';
@@ -11,7 +11,8 @@ import { useSidebar } from './SidebarContext';
 import { NavGroup } from '../navigation/NavGroup';
 import type { NavItemConfig } from '../navigation/NavItem';
 import { NavTooltip } from '../navigation/NavTooltip';
-import { NAV_GROUPS, ADMIN_NAV_ITEM } from '@/lib/navigation';
+import { ADMIN_NAV_ITEM, navGroupsFor } from '@/lib/navigation';
+import { homeFor, universeOf } from '@/lib/universe';
 import {
   SIDEBAR_WIDTH_COLLAPSED,
   SIDEBAR_WIDTH_EXPANDED,
@@ -27,6 +28,9 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
   const user = useUserStore();
   const { isSidebarCollapsed, toggleCollapse } = useSidebar();
   const isAdmin = user.isAdmin;
+  const universe = universeOf(user.account_type);
+  const isOrg = universe === 'org';
+  const groups = navGroupsFor(universe);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -39,7 +43,7 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
 
   return (
     <aside
-      className={`h-full bg-[#080414] border-r border-white/[0.08] flex flex-col justify-between shrink-0 select-none transition-all duration-300 ease-in-out ${
+      className={`h-full bg-zinc-950 border-r border-white/[0.08] flex flex-col justify-between shrink-0 select-none transition-all duration-300 ease-in-out ${
         // Must stay in lockstep with the fixed wrapper in AppShell and the
         // offset in MainCanvas, or the sidebar overdraws the content.
         isSidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
@@ -49,7 +53,7 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
       <div>
         <div className="h-16 px-4 flex items-center justify-between border-b border-white/[0.08]">
           <Link
-            href="/"
+            href={homeFor(user.account_type)}
             onClick={onCloseMobile}
             className={`flex items-center gap-3 group overflow-hidden ${
               isSidebarCollapsed ? 'mx-auto' : ''
@@ -100,7 +104,7 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
             isSidebarCollapsed ? 'px-2' : ''
           }`}
         >
-          {NAV_GROUPS.map((group) => (
+          {groups.map((group) => (
             <NavGroup
               key={group.label}
               label={group.label}
@@ -110,7 +114,7 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
             />
           ))}
 
-          {isAdmin && (
+          {isAdmin && !isOrg && (
             <NavGroup
               label="Platform"
               items={[ADMIN_NAV_ITEM] as NavItemConfig[]}
@@ -123,13 +127,45 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
 
       {/* Footer / Passport Card / User Profile */}
       <div className="p-3 border-t border-white/[0.08] space-y-3">
-        {/* Passport summary pill */}
-        {user.passport_id && (
+        {/* Universe summary pill — the passport for talent, the org card for
+            organisations (an organisation has no talent passport). */}
+        {isOrg ? (
           <div
             className={`p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] transition-all ${
               isSidebarCollapsed ? 'text-center' : 'space-y-2'
             }`}
           >
+            {isSidebarCollapsed ? (
+              <NavTooltip content={user.org_name || 'Organization'} side="right">
+                <Link
+                  href="/org/settings"
+                  onClick={onCloseMobile}
+                  className="flex items-center justify-center gap-1 group py-1"
+                >
+                  <Building2 className="w-4 h-4 text-[#A78BFA] group-hover:scale-110 transition-transform" />
+                </Link>
+              </NavTooltip>
+            ) : (
+              <Link href="/org/settings" onClick={onCloseMobile} className="block group">
+                <span className="text-[11px] uppercase tracking-wider font-semibold flex items-center gap-1.5 text-[#8B8B96]">
+                  <Building2 className="w-3 h-3 text-[#A78BFA]" /> Organization
+                </span>
+                <p className="text-[12px] font-semibold text-[#F5F5F7] truncate mt-1 group-hover:text-white">
+                  {user.org_name || user.name || 'Your organization'}
+                </p>
+                <p className="text-[11px] text-[#A1A1AA] truncate">
+                  {[...(user.org_focus ?? [])].slice(0, 2).join(' · ') || user.org_website || 'Set up your profile'}
+                </p>
+              </Link>
+            )}
+          </div>
+        ) : (
+          user.passport_id && (
+            <div
+              className={`p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] transition-all ${
+                isSidebarCollapsed ? 'text-center' : 'space-y-2'
+              }`}
+            >
             {isSidebarCollapsed ? (
               <NavTooltip content={`Passport: ${completeness}% complete`} side="right">
                 <Link
@@ -165,6 +201,7 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
               </>
             )}
           </div>
+          )
         )}
 
         {/* User Card & Sign Out */}

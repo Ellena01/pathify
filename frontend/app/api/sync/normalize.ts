@@ -83,6 +83,30 @@ export const DEFAULT_QUERIES = [
   'site:google.com/search "developer fellowship" remote 2026',
   'site:google.com/search "remote design competition" 2026',
   'site:google.com/search "software engineering internship" Kenya OR Ghana OR Rwanda',
+
+  // Ghana and Kenya are named in onboarding's geography presets. Sweeping only
+  // pan-African queries leaves those two markets answered by aggregators, so
+  // the boards they actually read get their own queries.
+  'site:linkedin.com/jobs software engineer Ghana',
+  'site:linkedin.com/jobs software engineer Kenya',
+  'site:ghanajobs.com technology',
+  'site:brightermonday.co.ke technology jobs',
+  'site:fuzu.com engineering',
+
+  // The investor and org universe searches the same catalog for people to hire
+  // in the UK and US. Without these, that search returns the remote long tail
+  // and nothing local — the same gap the EU/US boards in the actor registry
+  // were added to close.
+  'site:linkedin.com/jobs software engineer London',
+  'site:google.com/search startup engineering jobs Europe 2026',
+  'site:google.com/search software engineer jobs "United States" 2026',
+  'site:builtin.com startup engineering jobs',
+  'site:simplyhired.com software engineer',
+  'site:reed.co.uk developer jobs',
+
+  // Remote is the surface both universes share, and it is where a query with
+  // no geography lands.
+  'site:t.me remote jobs worldwide',
 ] as const;
 
 export interface QueryInput {
@@ -344,9 +368,16 @@ export function normalizeItem(item: Record<string, unknown>): NormalizedRow {
       source_domain: hostname,
       deadline: isoDate(item.deadline),
       amount: str(item.amount, 80) || null,
-      // Which platform this came from, so multi-source provenance is auditable
-      // and a dead source can be identified in the admin source-health table.
+      // Bounded summary from the actor. Read by the detail page, so it needs to
+      // be a real column — it used to exist only inside the `raw_data` blob,
+      // which the detail view deliberately does not select.
+      description: str(item.description, 800) || null,
+      // Which platform surface produced this row, so the admin source-health
+      // breakdown is attributable to a discovery surface and not just a host.
       source_platform: str(item.source_platform ?? item.discovery_source, 40) || null,
+      // The `site:`-scoped query that surfaced this listing. Provenance, so a
+      // bad query is diagnosable without re-running the crawl.
+      discovery_query: str(item.discovery_query, 200) || null,
       raw_data: rawData,
       // `synced_at` is "last time this row was written" and is rewritten on
       // every upsert. The alert digest filters on it, which made every listing

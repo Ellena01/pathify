@@ -240,3 +240,13 @@ test('DEFAULT_QUERIES cover the four discovery surfaces Pathify needs', () => {
     assert.ok(q.startsWith('site:'), `query should be site-scoped: ${q}`);
   }
 });
+
+test('DEFAULT_QUERIES cover the Ghana/Kenya presets and the EU/US hiring markets', () => {
+  const text = DEFAULT_QUERIES.join(' ').toLowerCase();
+  // Onboarding offers Ghana and Kenya as geographies, and the org universe
+  // searches the UK/US markets it hires in. Neither should depend on a
+  // pan-African query happening to return something local.
+  for (const needle of ['ghana', 'kenya', 'london', 'europe', 'united states']) {
+    assert.ok(text.includes(needle), `expected a default query mentioning ${needle}`);
+  }
+});

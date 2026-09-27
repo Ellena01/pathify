@@ -22,6 +22,8 @@ with RLS policies.
 3. `supabase/migrations/20260924_fix_rls_and_security.sql` — hardens `opportunities_cache` update to `service_role` only, adds `user_profiles delete` policy.
 4. `supabase/migrations/20260926_extended_passport_onboarding.sql` — extended `metadata` jsonb, `onboarding_completed` flag.
 5. `supabase/migrations/20260926_hardening_passport_v2.sql` — **required.** Closes the world-writable `opportunities_cache` update policy, revokes the unauthenticated `generate_share_slug` RPC, moves passports to `PYF-XXXXX-C`, adds `first_seen_at`, the `saved_jobs` UPDATE policy, `user_opportunity_matches`, and the admin audit log.
+6. `supabase/migrations/20260927_sync_ingest_columns.sql` — **required for ingestion.** Adds the `opportunities_cache` columns `/api/sync` writes (`source_platform`, `verification_status`, …) so pushes stop failing on a missing column.
+7. `supabase/migrations/20260928_two_universes_connections.sql` — **required for the two-universe release.** `account_type` (individual vs organization) plus org columns, the `connections` graph with DB-owned labels and frozen parties, `outreach_messages`, the `handle_new_user()` rewrite, the GIN index on `skills_required` that backs the match ladder, and a ~40-row `registry` seed so a fresh database never opens on an empty feed.
 
 Verify:
 ```sql

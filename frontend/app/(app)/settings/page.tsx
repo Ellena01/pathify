@@ -135,10 +135,10 @@ export default function SettingsPage() {
               <select
                 value={user.country || 'Nigeria'}
                 onChange={(e) => scheduleSave({ country: e.target.value })}
-                className="w-full h-11 bg-[#080414] border border-white/15 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#8B5CF6]"
+                className="w-full h-11 bg-zinc-950 border border-white/15 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-[#8B5CF6]"
               >
                 {COUNTRIES.map((c) => (
-                  <option key={c} value={c} className="bg-[#080414] text-white">
+                  <option key={c} value={c} className="bg-zinc-950 text-white">
                     {c}
                   </option>
                 ))}

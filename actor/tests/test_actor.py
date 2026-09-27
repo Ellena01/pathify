@@ -33,8 +33,13 @@ from src.enrichment import (  # noqa: E402
     extract_amount,
     strip_html,
 )
-from src.sources import REGISTRY, get_default_urls, resolve_enricher  # noqa: E402
-from src.sources.base import clean_title, dedupe_key, infer_type  # noqa: E402
+from src.sources import (  # noqa: E402
+    DEFAULT_URLS_BY_DOMAIN,
+    REGISTRY,
+    get_default_urls,
+    resolve_enricher,
+)
+from src.sources.base import DOMAIN_TO_TYPE, clean_title, dedupe_key, infer_type  # noqa: E402
 
 TODAY = date(2026, 9, 26)
 
@@ -291,6 +296,37 @@ class TestRegistry(unittest.TestCase):
 
     def test_unknown_type_falls_back_rather_than_returning_nothing(self):
         self.assertTrue(get_default_urls(["not_a_real_type"]))
+
+    def test_ghana_kenya_and_eu_us_boards_are_registered(self):
+        # Onboarding names Ghana and Kenya in its geography presets, and the
+        # org universe searches the UK/US markets it hires in. A registry that
+        # only knows Nigeria and South Africa answers neither.
+        for domain in (
+            "ghanajobs.com", "jobwebghana.com", "brightermonday.co.ke",
+            "careerpointkenya.com", "fuzu.com", "ngcareers.com",
+            "eurojobs.com", "reed.co.uk", "totaljobs.com", "builtin.com",
+            "simplyhired.com", "ziprecruiter.com", "monster.com",
+        ):
+            self.assertIn(domain, REGISTRY, f"{domain} missing from REGISTRY")
+            self.assertIn(domain, DEFAULT_URLS_BY_DOMAIN, f"{domain} has no index URL")
+
+    def test_every_registry_host_is_seeded_and_typed(self):
+        # Both halves of the expansion, as one invariant: a host can be
+        # registered and still be invisible to a URL-driven run (no seed URL),
+        # or reachable but typed nowhere (infer_type then answers jobs_remote
+        # and the record lands in the wrong ladder step upstream).
+        for domain in REGISTRY:
+            self.assertIn(domain, DEFAULT_URLS_BY_DOMAIN, domain)
+            self.assertIn(domain, DOMAIN_TO_TYPE, domain)
+
+    def test_national_boards_are_not_typed_as_remote(self):
+        for domain in (
+            "jobberman.com", "ghanajobs.com", "brightermonday.co.ke",
+            "careerpointkenya.com", "reed.co.uk", "eurojobs.com",
+        ):
+            self.assertEqual(DOMAIN_TO_TYPE[domain], "jobs_onsite", domain)
+            # Domain is the fallback: a bare listing title carries no signal.
+            self.assertEqual(infer_type(domain, "Senior React Engineer"), "jobs_onsite", domain)
 
 
 class TestLinkAdmission(unittest.TestCase):

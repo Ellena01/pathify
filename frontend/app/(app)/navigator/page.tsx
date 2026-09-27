@@ -300,7 +300,7 @@ export default function NavigatorPage() {
       </main>
 
       {/* Input Area */}
-      <div className="sticky bottom-0 border-t border-white/[0.08] bg-[#080414]/90 backdrop-blur-xl">
+      <div className="sticky bottom-0 border-t border-white/[0.08] bg-zinc-950/90 backdrop-blur-xl">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex gap-3 items-end">
             <input

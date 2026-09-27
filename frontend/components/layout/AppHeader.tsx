@@ -22,7 +22,7 @@ export function AppHeader({
   const user = useUserStore();
 
   return (
-    <header className="sticky top-0 z-40 h-16 border-b border-white/[0.08] bg-[#080414]/80 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 h-16 border-b border-white/[0.08] bg-zinc-950/80 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between gap-4">
       {/* Left: Mobile hamburger & title */}
       <div className="flex items-center gap-3">
         <button

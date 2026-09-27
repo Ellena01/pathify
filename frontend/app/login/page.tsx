@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { ArrowRight } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+import { homeFor } from '@/lib/universe';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -28,77 +30,128 @@ export default function LoginPage() {
       return;
     }
 
-    // Check onboarding completion
+    // Route by universe. An organization account sent to /dashboard would be
+    // bounced straight back by the middleware, which is a wasted round trip
+    // the user experiences as a flicker.
     const { data: { user } } = await supabase.auth.getUser();
+
+    // Where the middleware parked them before bouncing to /login. Only a
+    // same-origin absolute path is honoured: `//evil.example` is protocol-
+    // relative and would be an open redirect.
+    const rawNext = new URLSearchParams(window.location.search).get('next');
+    const next = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
+
     if (user) {
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('onboarding_completed')
+        .select('onboarding_completed, account_type')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (profile && !profile.onboarding_completed) {
-        router.push('/onboarding');
+      if (profile) {
+        if (!profile.onboarding_completed) {
+          // Onboarding owns the post-setup redirect; `next` is honoured after.
+          router.push('/onboarding');
+          router.refresh();
+          return;
+        }
+        router.push(next ?? homeFor(profile.account_type));
         router.refresh();
         return;
       }
     }
 
-    router.push('/dashboard');
+    router.push(next ?? '/dashboard');
     router.refresh();
   };
 
   return (
-    <div className="min-h-screen bg-[#080414] bg-[radial-gradient(ellipse_at_top,_#3b107c4D_0%,_#080414_50%,_#04020a_100%)] flex items-center justify-center p-4 sm:p-6 text-[#F5F5F7]">
-      <div className="w-full max-w-md bg-white/[0.05] backdrop-blur-lg border border-white/[0.10] rounded-2xl p-6 sm:p-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)] max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="text-[#8B5CF6]">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-7 h-7">
-              <circle cx="6" cy="18" r="2" /><circle cx="6" cy="6" r="2" /><circle cx="18" cy="12" r="2" />
-              <path d="M8 17.5L16 13" /><path d="M8 6.5L16 11" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-[20px] font-black tracking-tighter bg-gradient-to-r from-[#F5F5F7] to-[#8B5CF6] bg-clip-text text-transparent leading-none">PATHIFY</h1>
-            <span className="text-[10px] tracking-[0.18em] uppercase text-[#A1A1AA]">By Pathfinder Labs</span>
-          </div>
-        </div>
-        <h2 className="text-xl font-bold mt-6 mb-1">Welcome back to Pathify</h2>
-        <p className="text-sm text-[#A1A1AA] mb-6 leading-relaxed">Sign in to see matches tailored to your skills and save opportunities</p>
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-zinc-950 px-5 py-12 text-white selection:bg-violet-500/30 sm:px-8">
+      <div
+        aria-hidden="true"
+        className="pathify-glow pointer-events-none absolute inset-x-0 top-0 h-[480px]"
+      />
 
-        <form onSubmit={handleLogin} className="space-y-4">
+      <Link
+        href="/"
+        className="relative z-10 mb-8 text-base font-semibold tracking-tight text-white transition-colors hover:text-violet-400"
+      >
+        Pathify
+      </Link>
+
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900/40 p-6 backdrop-blur-xl sm:p-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+          Welcome back.
+        </h1>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+          Sign in to see your matches, pick up saved listings, and keep your tracker current.
+        </p>
+
+        <form onSubmit={handleLogin} className="mt-7 space-y-5">
           <div>
-            <label className="text-xs tracking-widest uppercase text-[#A1A1AA] font-semibold">Email address</label>
+            <label htmlFor="email" className="block text-sm font-medium text-white">
+              Email address
+            </label>
             <input
-              type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="aisha@example.com"
-              className="mt-1 w-full h-11 bg-black/30 border border-white/10 rounded-full px-4 text-base sm:text-sm text-[#F5F5F7] placeholder-[#8B8B96] focus:outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#8B5CF6]/20"
+              id="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-3.5 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
             />
           </div>
+
           <div>
-            <label className="text-xs tracking-widest uppercase text-[#A1A1AA] font-semibold">Password</label>
+            <label htmlFor="password" className="block text-sm font-medium text-white">
+              Password
+            </label>
             <input
-              type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+              id="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="mt-1 w-full h-11 bg-black/30 border border-white/10 rounded-full px-4 text-base sm:text-sm text-[#F5F5F7] placeholder-[#8B8B96] focus:outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#8B5CF6]/20"
+              className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-3.5 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
             />
           </div>
 
-          {errorMsg && <p className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl p-3 leading-relaxed">{errorMsg}</p>}
+          {errorMsg && (
+            <p className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm leading-relaxed text-red-300">
+              {errorMsg}
+            </p>
+          )}
 
           <button
-            type="submit" disabled={loading}
-            className="w-full h-11 bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-60 text-white text-sm font-bold rounded-full transition-colors shadow-[0_0_16px_rgba(139,92,246,0.25)]"
+            type="submit"
+            disabled={loading}
+            className="group h-11 w-full rounded-lg bg-violet-500 text-sm font-semibold text-white transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? 'Signing you in…' : 'Continue'}
+            <span className="inline-flex items-center gap-2">
+              {loading ? 'Signing you in…' : 'Log in'}
+              {!loading && (
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              )}
+            </span>
           </button>
         </form>
 
-        <p className="text-sm text-[#A1A1AA] mt-6 text-center">
-          New to Pathify? <Link href="/signup" className="text-[#8B5CF6] hover:text-[#A78BFA] font-medium">Create free account</Link>
+        <p className="mt-6 text-center text-sm text-zinc-400">
+          New to Pathify?{' '}
+          <Link href="/signup" className="font-medium text-violet-400 transition-colors hover:text-violet-300">
+            Create an account
+          </Link>
         </p>
-        <p className="text-xs text-[#8B8B96] mt-3 text-center leading-relaxed">Tip: Check your inbox for a confirmation email after you sign up. Didn’t get it? Try resending from signup.</p>
       </div>
+
+      <p className="relative z-10 mt-6 max-w-md text-center text-xs leading-relaxed text-zinc-500">
+        Confirmation emails come from Pathify by Pathfinder Labs. Didn’t get one? Try signing up
+        again to resend.
+      </p>
     </div>
   );
 }

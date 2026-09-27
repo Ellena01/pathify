@@ -3,11 +3,31 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { ArrowLeft, ArrowRight, Building2, User } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 
 const COUNTRIES = ['Nigeria','Kenya','Ghana','Rwanda','South Africa','Ethiopia','Egypt','Morocco','Senegal','Uganda','Tanzania','Cameroon','Zambia','Zimbabwe','Botswana','Benin','Global / Remote'];
 
+type Role = 'individual' | 'organization';
+
+const ROLE_OPTIONS: { id: Role; title: string; body: string; icon: typeof User }[] = [
+  {
+    id: 'individual',
+    title: 'Individual',
+    body: 'I want to discover opportunities, track applications and grow my career.',
+    icon: User,
+  },
+  {
+    id: 'organization',
+    title: 'Organization',
+    body: 'I want to find talent, review passports and run outreach from one pipeline.',
+    icon: Building2,
+  },
+];
+
 export default function SignupPage() {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [role, setRole] = useState<Role | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,6 +37,8 @@ export default function SignupPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const supabase = createClient();
   const router = useRouter();
+
+  const selectedRole = ROLE_OPTIONS.find(r => r.id === role);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +50,17 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        data: { name, country },
+        // `account_type` is read by `public.handle_new_user()`, which validates
+        // it against the same vocabulary the DB check uses and falls back to
+        // 'individual'. Never send `role` here: that column holds the job
+        // title, and writing 'individual' into it would arrive as the user's
+        // profession.
+        data: {
+          name,
+          country,
+          account_type: role,
+          ...(role === 'organization' ? { org_name: name } : {}),
+        },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -53,72 +85,252 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080414] bg-[radial-gradient(ellipse_at_top,_#3b107c4D_0%,_#080414_50%,_#04020a_100%)] flex items-center justify-center p-4 sm:p-6 text-[#F5F5F7]">
-      <div className="w-full max-w-md bg-white/[0.05] backdrop-blur-lg border border-white/[0.10] rounded-2xl p-6 sm:p-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)] max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="text-[#8B5CF6]">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-7 h-7">
-              <circle cx="6" cy="18" r="2" /><circle cx="6" cy="6" r="2" /><circle cx="18" cy="12" r="2" />
-              <path d="M8 17.5L16 13" /><path d="M8 6.5L16 11" />
-            </svg>
+    <div className="relative flex min-h-screen flex-col bg-zinc-950 text-white selection:bg-violet-500/30">
+      <div
+        aria-hidden="true"
+        className="pathify-glow pointer-events-none absolute inset-x-0 top-0 h-[420px]"
+      />
+
+      <header className="relative z-10 px-5 pt-6 sm:px-8">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm text-zinc-400 transition-colors hover:text-white">
+          <span className="text-base font-semibold tracking-tight text-white">Pathify</span>
+        </Link>
+      </header>
+
+      <main className="relative z-10 flex flex-1 items-center px-5 py-10 sm:px-8 sm:py-14">
+        <div className="mx-auto w-full max-w-xl">
+          {/* Step indicator */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+              <span>
+                Step {step} of 2 · {step === 1 ? 'Your identity' : 'Your account'}
+              </span>
+              <span className="font-mono normal-case tracking-normal text-violet-400">Join Pathify</span>
+            </div>
+            <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-violet-500 transition-all duration-300"
+                style={{ width: step === 1 ? '50%' : '100%' }}
+              />
+            </div>
           </div>
-          <div>
-            <h1 className="text-[20px] font-black tracking-tighter bg-gradient-to-r from-[#F5F5F7] to-[#8B5CF6] bg-clip-text text-transparent leading-none">PATHIFY</h1>
-            <span className="text-[10px] tracking-[0.18em] uppercase text-[#A1A1AA]">By Pathfinder Labs</span>
+
+          <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6 backdrop-blur-xl sm:p-8">
+            {/* STEP 1 — role picker */}
+            {step === 1 && (
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                  Who is this account for?
+                </h1>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                  Pick one to start. It decides which workspace you land in — talent
+                  accounts get a passport and matches, organizations get a talent
+                  pipeline.
+                </p>
+
+                <div className="mt-6 space-y-3">
+                  {ROLE_OPTIONS.map(option => {
+                    const selected = role === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setRole(option.id)}
+                        aria-pressed={selected}
+                        className={`flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-all sm:p-5 ${
+                          selected
+                            ? 'border-violet-500/40 bg-violet-500/10 ring-1 ring-violet-500/30'
+                            : 'border-white/10 bg-zinc-950/40 hover:border-violet-500/40'
+                        }`}
+                      >
+                        <span
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                            selected
+                              ? 'border-violet-500/40 bg-violet-500/20 text-violet-300'
+                              : 'border-white/10 bg-white/5 text-zinc-400'
+                          }`}
+                        >
+                          <option.icon className="h-5 w-5" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-3">
+                            <span className="text-base font-medium text-white">{option.title}</span>
+                            <span
+                              className={`h-4 w-4 shrink-0 rounded-full border transition-colors ${
+                                selected ? 'border-violet-400 bg-violet-500' : 'border-zinc-600'
+                              }`}
+                            />
+                          </span>
+                          <span className="mt-1 block text-sm leading-relaxed text-zinc-400">
+                            {option.body}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!role}
+                  onClick={() => setStep(2)}
+                  className="group mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-violet-500 text-sm font-semibold text-white transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-zinc-500"
+                >
+                  Continue
+                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                </button>
+
+                <p className="mt-5 text-center text-sm text-zinc-400">
+                  Already have an account?{' '}
+                  <Link href="/login" className="font-medium text-violet-400 transition-colors hover:text-violet-300">
+                    Log in
+                  </Link>
+                </p>
+              </div>
+            )}
+
+            {/* STEP 2 — account details */}
+            {step === 2 && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="mb-5 inline-flex items-center gap-1.5 text-sm text-zinc-400 transition-colors hover:text-white"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </button>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-violet-500/40 bg-violet-500/10 px-3 py-1 text-xs font-medium text-violet-300">
+                    {selectedRole?.title}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="text-xs text-zinc-500 underline-offset-4 transition-colors hover:text-zinc-300 hover:underline"
+                  >
+                    Change
+                  </button>
+                </div>
+
+                <h1 className="mt-4 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                  {role === 'organization' ? 'Create your organization account' : 'Create your account'}
+                </h1>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                  {role === 'organization'
+                    ? 'You can rename the organization and set its focus during setup.'
+                    : 'One profile for matching, applications, and tracking.'}
+                </p>
+
+                <form onSubmit={handleSignup} className="mt-7 space-y-5">
+                  <div>
+                    <label htmlFor="name" className="block text-sm font-medium text-white">
+                      {role === 'organization' ? 'Organization name' : 'Full name'}
+                    </label>
+                    <input
+                      id="name"
+                      type="text"
+                      required
+                      autoComplete="organization"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder={role === 'organization' ? 'e.g. Zenvest' : 'Aisha Bello'}
+                      className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-3.5 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="country" className="block text-sm font-medium text-white">
+                      Country
+                    </label>
+                    <select
+                      id="country"
+                      value={country}
+                      onChange={e => setCountry(e.target.value)}
+                      className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-3.5 text-sm text-white outline-none transition-colors focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                    >
+                      {COUNTRIES.map(c => <option key={c} value={c} className="bg-zinc-950">{c}</option>)}
+                    </select>
+                    <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+                      {role === 'organization'
+                        ? 'Used to scope your hiring regions. You can add more during setup.'
+                        : <>This sets the jurisdiction on your passport ID — for example{' '}
+                          <span className="font-mono text-violet-400">PYF-8X29K-4</span>.</>}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-white">
+                      Email
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-3.5 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-white">
+                      Password
+                    </label>
+                    <input
+                      id="password"
+                      type="password"
+                      required
+                      autoComplete="new-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="At least 6 characters"
+                      className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-3.5 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                    />
+                    <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+                      Use 6+ characters. We will email you a confirmation link from Pathify.
+                    </p>
+                  </div>
+
+                  {errorMsg && (
+                    <p className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm leading-relaxed text-red-300">
+                      {errorMsg}
+                    </p>
+                  )}
+                  {infoMsg && (
+                    <p className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm leading-relaxed text-emerald-300">
+                      {infoMsg}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="group h-11 w-full rounded-lg bg-violet-500 text-sm font-semibold text-white transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      {loading ? 'Creating your account…' : 'Create account'}
+                      {!loading && (
+                        <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                      )}
+                    </span>
+                  </button>
+                </form>
+
+                <p className="mt-6 text-center text-sm text-zinc-400">
+                  Already have an account?{' '}
+                  <Link href="/login" className="font-medium text-violet-400 transition-colors hover:text-violet-300">
+                    Log in
+                  </Link>
+                </p>
+              </div>
+            )}
           </div>
         </div>
-        <h2 className="text-xl font-bold mt-6 mb-1">Create your Pathify account</h2>
-        <p className="text-sm text-[#A1A1AA] mb-6 leading-relaxed">Get opportunities matched to your skills — and see what to learn next</p>
-
-        <form onSubmit={handleSignup} className="space-y-4">
-          <div>
-            <label className="text-xs tracking-widest uppercase text-[#A1A1AA] font-semibold">Full name</label>
-            <input
-              type="text" required value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="Aisha Bello"
-              className="mt-1 w-full h-11 bg-black/30 border border-white/10 rounded-full px-4 text-base sm:text-sm text-[#F5F5F7] placeholder-[#8B8B96] focus:outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#8B5CF6]/20"
-            />
-          </div>
-          <div>
-            <label className="text-xs tracking-widest uppercase text-[#A1A1AA] font-semibold">Country</label>
-            <select value={country} onChange={e=>setCountry(e.target.value)} className="mt-1 w-full h-11 bg-black/30 border border-white/10 rounded-full px-4 text-base sm:text-sm text-[#F5F5F7] focus:outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#8B5CF6]/20">
-              {COUNTRIES.map(c => <option key={c} value={c} className="bg-[#080414]">{c}</option>)}
-            </select>
-            <p className="text-[11px] text-[#8B8B96] mt-1">Issues your passport <span className="font-mono text-[#A78BFA]">PYF-8X29K-4</span> — a jurisdiction-stamped credential. Your country sets the jurisdiction, not the ID.</p>
-          </div>
-          <div>
-            <label className="text-xs tracking-widest uppercase text-[#A1A1AA] font-semibold">Email</label>
-            <input
-              type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="aisha@gmail.com"
-              className="mt-1 w-full h-11 bg-black/30 border border-white/10 rounded-full px-4 text-base sm:text-sm text-[#F5F5F7] placeholder-[#8B8B96] focus:outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#8B5CF6]/20"
-            />
-          </div>
-          <div>
-            <label className="text-xs tracking-widest uppercase text-[#A1A1AA] font-semibold">Password</label>
-            <input
-              type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
-              className="mt-1 w-full h-11 bg-black/30 border border-white/10 rounded-full px-4 text-base sm:text-sm text-[#F5F5F7] placeholder-[#8B8B96] focus:outline-none focus:border-[#8B5CF6] focus:ring-2 focus:ring-[#8B5CF6]/20"
-            />
-            <p className="text-xs text-[#A1A1AA] mt-1.5 leading-relaxed">Use 6+ characters. You’ll confirm your email next — look for a link from Pathify by Pathfinder Labs.</p>
-          </div>
-
-          {errorMsg && <p className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl p-3 leading-relaxed">{errorMsg}</p>}
-          {infoMsg && <p className="text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 leading-relaxed">{infoMsg}</p>}
-
-          <button
-            type="submit" disabled={loading}
-            className="w-full h-11 bg-[#8B5CF6] hover:bg-[#7C3AED] disabled:opacity-60 text-white text-sm font-bold rounded-full transition-colors shadow-[0_0_16px_rgba(139,92,246,0.25)]"
-          >
-            {loading ? 'Creating your account…' : 'Create account'}
-          </button>
-        </form>
-
-        <p className="text-sm text-[#A1A1AA] mt-6 text-center">
-          Already have an account? <Link href="/login" className="text-[#8B5CF6] hover:text-[#A78BFA] font-medium">Sign in</Link>
-        </p>
-      </div>
+      </main>
     </div>
   );
 }

@@ -13,12 +13,15 @@ WHY THE REGISTRY GREW
 ---------------------
 It was five domains, none of them African: YC, Work at a Startup, Devpost,
 OpportunityDesk, Eventbrite. Pathify's positioning is African-first, and a
-crawler with no African sources cannot back that up. It is now 40+ hosts across
-three groups:
+crawler with no African sources cannot back that up. It is now 60+ hosts across
+four groups:
 
   * the original five (kept: they are real, high-signal and global)
   * African and pan-African job boards, fellowship and grant aggregators, and
-    developer communities — the regional core
+    developer communities — the regional core, now including Ghana and Kenya
+    rather than only Nigeria and South Africa
+  * EU/US national boards — the markets investors and organizations hire in,
+    which an Africa-only registry could not answer
   * global remote aggregators — the remote-first long tail
 
 A note on how these are actually reached: this registry supplies *index URLs* for
@@ -83,6 +86,23 @@ REGISTRY = {
     "jumia.com": africa.jumia_jobs,
     "turing.com": africa.turing,
     "welcometothejungle.com": africa.welcometothejungle,
+
+    # --- Ghana, Kenya and wider Nigeria boards -----------------------------
+    "ghanajobs.com": africa.ghana_jobs,
+    "jobwebghana.com": africa.jobwebghana,
+    "brightermonday.co.ke": africa.brighter_monday_ke,
+    "careerpointkenya.com": africa.careerpoint_kenya,
+    "fuzu.com": africa.fuzu,
+    "ngcareers.com": africa.ngcareers,
+
+    # --- EU / US national boards -------------------------------------------
+    "eurojobs.com": africa.eurojobs,
+    "reed.co.uk": africa.reed,
+    "totaljobs.com": africa.totaljobs,
+    "builtin.com": africa.builtin,
+    "simplyhired.com": africa.simplyhired,
+    "ziprecruiter.com": africa.ziprecruiter,
+    "monster.com": africa.monster,
 
     # --- African fellowships, grants, accelerators -------------------------
     "techcabal.com": africa.techcabal,
@@ -150,6 +170,7 @@ TYPE_TO_DOMAINS = {
         "remoteresources.com", "justremote.com", "africa.careers",
         "brightercountry.com", "turing.com", "welcometothejungle.com",
         "ycombinator.com", "workatastartup.com",
+        "simplyhired.com", "ziprecruiter.com", "monster.com", "builtin.com",
     ],
     "jobs_hybrid": [
         "africa.careers", "brightercountry.com", "welcometothejungle.com",
@@ -158,6 +179,9 @@ TYPE_TO_DOMAINS = {
     "jobs_onsite": [
         "jobberman.com", "myjobmag.com", "jobcity.co.za", "careers24.com",
         "pnet.co.za", "jumia.com", "africa.careers",
+        "ghanajobs.com", "jobwebghana.com", "brightermonday.co.ke",
+        "careerpointkenya.com", "fuzu.com", "ngcareers.com",
+        "reed.co.uk", "totaljobs.com", "eurojobs.com",
     ],
     "internships": [
         "nairabotics.com", "inecoonline.com", "codebar.io", "droneacademy.com",

@@ -1,11 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --background: #080414;
-  --foreground: #F5F5F7;
-  --muted: #A1A1AA;
-  --primary: #8B5CF6;
-  --primary-soft: #A78BFA;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --muted: #a1a1aa;
+  --primary: #8b5cf6;
+  --primary-soft: #a78bfa;
+}
+
+/* Pathify atmospheric glow — the signature violet depth at the top of a screen. */
+@utility pathify-glow {
+  background-image: radial-gradient(
+    ellipse 80% 80% at 50% -20%,
+    rgba(139, 92, 246, 0.12),
+    rgba(255, 255, 255, 0)
+  );
+}
+
+/* Keeps sticky headers clear of notches and home indicators. */
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
 }
 
 @theme inline {

@@ -30,7 +30,7 @@ import { createClient } from '@/utils/supabase/server';
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 
 const PASSPORT_COLUMNS =
-  'id, name, role, country, skills, goals, passport_id, passport_share_slug, is_passport_public, passport_issued_at, onboarding_completed, metadata';
+  'id, name, role, country, skills, goals, passport_id, passport_share_slug, is_passport_public, passport_issued_at, onboarding_completed, metadata, account_type';
 
 /** Columns returned after a mutation — never `metadata`, which the caller already has. */
 const PASSPORT_MUTATION_COLUMNS = 'passport_id, passport_share_slug, is_passport_public, passport_issued_at';
@@ -101,7 +101,11 @@ export async function GET() {
 
   // Self-heal rows created before the trigger existed. Nulling the column is
   // the only supported way to ask for a new ID — see the module comment.
-  if (!data.passport_id) {
+  //
+  // Only individuals get a passport. Organization and investor rows must not be
+  // handed a credential at all, and reissue would leave them null anyway
+  // (fill_passport_id refuses), so asking would turn a design rule into a 500.
+  if (!data.passport_id && data.account_type === 'individual') {
     const reissued = await reissuePassportId(supabase, user.id);
     if ('error' in reissued) return reissued.error;
     return NextResponse.json({ ...data, ...reissued.data }, { headers: NO_STORE });
@@ -186,6 +190,20 @@ export async function POST(request: Request) {
   }
 
   if (action === 'regenerate_passport') {
+    // Same rule as the self-heal: an organization reissuing "its passport"
+    // would get a null row back, which reads as a failure rather than a rule.
+    const { data: acct } = await supabase
+      .from('user_profiles')
+      .select('account_type')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (acct && acct.account_type && acct.account_type !== 'individual') {
+      return NextResponse.json(
+        { error: 'Passports are issued to individual accounts only.' },
+        { status: 400, headers: NO_STORE }
+      );
+    }
+
     const reissued = await reissuePassportId(supabase, user.id);
     if ('error' in reissued) return reissued.error;
     return NextResponse.json(reissued.data, { headers: NO_STORE });

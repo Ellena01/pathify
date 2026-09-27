@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 
 import { Sidebar } from './Sidebar';
@@ -11,6 +11,7 @@ import { MainCanvas } from './MainCanvas';
 import { SidebarProvider, useSidebar } from './SidebarContext';
 import { createClient } from '@/utils/supabase/client';
 import { useUserStore } from '@/app/store';
+import { homeFor, universeOf, universeOfRoute } from '@/lib/universe';
 import {
   SIDEBAR_WIDTH_COLLAPSED,
   SIDEBAR_WIDTH_EXPANDED,
@@ -19,13 +20,16 @@ import {
 /**
  * The unified application shell.
  *
- * Rendered once by `app/(app)/layout.tsx` rather than imported by every page,
- * which is how the layout had drifted between routes.
+ * Rendered once per universe by `app/(app)/layout.tsx` (talent) and by
+ * `app/org/(org)/layout.tsx` (organisation), rather than imported by every
+ * page, which is how the layout had drifted between routes. Both layouts get
+ * identical chrome; the nav groups, home brand and footer differ by universe
+ * through `navGroupsFor(account_type)`.
  *
  * Authentication and the onboarding gate are enforced in
- * `utils/supabase/middleware.ts`. This component deliberately does NOT redirect:
- * duplicating the check in a `useEffect` was what caused protected UI to flash
- * before bouncing an anonymous visitor.
+ * `utils/supabase/middleware.ts`. The redirect below is not an access-control
+ * check — middleware already performed one — it is a consistency guard for a
+ * profile whose universe disagrees with the shell it is being drawn inside.
  *
  * Its only jobs are chrome (sidebar, mobile drawer, bottom bar) and hydrating
  * the client-side profile cache that the passport chip and completeness meter
@@ -38,7 +42,23 @@ interface AppShellProps {
 
 function AppShellContent({ children }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { isSidebarOpen, closeSidebar, isSidebarCollapsed } = useSidebar();
+  const accountType = useUserStore((s) => s.account_type);
+  const isHydrated = useUserStore((s) => s.isHydrated);
+
+  // Belt and braces on top of the middleware: if a hydrated profile lands in
+  // the other universe's shell (stale session, failed redirect, a profile that
+  // was switched server-side) it is sent back to its own home rather than being
+  // shown someone else's app. The check is route-vs-account, not
+  // "is this an org", because this shell renders both universes — the talent
+  // shell under `app/(app)` and the organisation shell under `app/org/(org)`.
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (universeOfRoute(pathname) !== universeOf(accountType)) {
+      router.replace(homeFor(accountType));
+    }
+  }, [isHydrated, accountType, pathname, router]);
 
   // Close the mobile drawer on navigation.
   useEffect(() => {
@@ -71,7 +91,7 @@ function AppShellContent({ children }: AppShellProps) {
         const { data: profile } = await supabase
           .from('user_profiles')
           .select(
-            'id, name, role, country, skills, goals, passport_id, passport_share_slug, is_passport_public, passport_issued_at, onboarding_completed, metadata, jurisdiction, is_admin'
+            'id, name, role, country, skills, goals, passport_id, passport_share_slug, is_passport_public, passport_issued_at, onboarding_completed, metadata, jurisdiction, is_admin, account_type, org_name, org_website, org_focus, org_skills, org_geo'
           )
           .eq('id', user.id)
           .maybeSingle();
@@ -93,6 +113,14 @@ function AppShellContent({ children }: AppShellProps) {
           metadata: profile.metadata || {},
           jurisdiction: profile.jurisdiction ?? null,
           isAdmin: Boolean(profile.is_admin),
+          // Defaults to 'individual' when the column is absent, so an
+          // unmigrated database keeps rendering the talent surface.
+          account_type: profile.account_type ?? 'individual',
+          org_name: profile.org_name ?? null,
+          org_website: profile.org_website ?? null,
+          org_focus: profile.org_focus ?? [],
+          org_skills: profile.org_skills ?? [],
+          org_geo: profile.org_geo ?? [],
         });
       } catch {
         // A failed cache fill must never block rendering. The server-rendered
@@ -107,7 +135,7 @@ function AppShellContent({ children }: AppShellProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#080414] text-[#F5F5F7] relative selection:bg-[#8B5CF6]/30">
+    <div className="min-h-screen bg-zinc-950 text-white relative selection:bg-violet-500/30">
       {/* Desktop sidebar.
           Width here MUST match the <aside> in Sidebar.tsx and the margin in
           MainCanvas.tsx. They previously disagreed (256 / 272 / 256), so the
@@ -135,7 +163,7 @@ function AppShellContent({ children }: AppShellProps) {
           role="dialog"
           aria-modal="true"
           aria-label="Navigation drawer"
-          className={`fixed top-0 bottom-0 left-0 w-72 max-w-[85vw] bg-[#080414] shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-out border-r border-white/[0.08] ${
+          className={`fixed top-0 bottom-0 left-0 w-72 max-w-[85vw] bg-zinc-950 shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-out border-r border-white/[0.08] ${
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >

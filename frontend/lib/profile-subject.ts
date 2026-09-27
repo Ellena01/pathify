@@ -62,6 +62,33 @@ export function yearsFromMetadata(metadata: Record<string, unknown> | null): num
 }
 
 /**
+ * Self-declared seniority band -> years, used when the profile has no
+ * `experience[]` history.
+ *
+ * Onboarding asks for a band rather than inventing a work history, and the
+ * experience factor needs a number to compare against a title's implied
+ * seniority. The mapping is intentionally coarse: it only has to land on the
+ * right side of the 0 / 4 / 6-year thresholds the engine uses.
+ */
+const EXPERIENCE_LEVEL_YEARS: Record<string, number> = {
+  student: 0,
+  entry: 1,
+  junior: 1,
+  mid: 4,
+  senior: 8,
+  expert: 12,
+  lead: 12,
+};
+
+export function yearsFromLevel(level: unknown): number | null {
+  if (typeof level !== 'string') return null;
+  const key = level.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(EXPERIENCE_LEVEL_YEARS, key)
+    ? EXPERIENCE_LEVEL_YEARS[key]
+    : null;
+}
+
+/**
  * Extract the preference arrays from `metadata.preferences`.
  * Returns null (not `[]`) for absent preferences, because the engine treats
  * "no preference stated" differently from "prefers nothing".
@@ -84,7 +111,9 @@ export function buildSubject(profile: ProfileRow): ResolvedSubject {
     skills: canonicalizeSkillList(profile.skills ?? []),
     country: profile.country,
     goals: profile.goals ?? [],
-    yearsExperience: yearsFromMetadata(metadata),
+    // Real history wins; the onboarding band is the fallback for profiles that
+    // have not filled in a work history yet (i.e. most of them).
+    yearsExperience: yearsFromMetadata(metadata) ?? yearsFromLevel(metadata.experience_level),
     currentRole: profile.role,
     preferredLocations: preferences.locations,
     preferredTypes: preferences.opportunityTypes,

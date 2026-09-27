@@ -293,7 +293,7 @@ export function OpportunityActions({
             className="sm:hidden w-full px-4 py-3 rounded-full text-sm bg-white/[0.04] border border-white/10 text-[#F5F5F7] focus:outline-none focus:border-[#8B5CF6] disabled:opacity-60"
           >
             {TRACKER_STAGES.map((candidate) => (
-              <option key={candidate} value={candidate} className="bg-[#080414]">
+              <option key={candidate} value={candidate} className="bg-zinc-950">
                 {STAGE_META[candidate].label}
               </option>
             ))}
