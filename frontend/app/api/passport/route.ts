@@ -89,14 +89,19 @@ export async function GET() {
         .eq('id', user.id)
         .single();
       if (stdErr) {
-        return NextResponse.json({ error: stdErr.message }, { status: 500, headers: NO_STORE });
+        // The core columns are unreadable too. Serve the session-derived shell
+        // rather than a 500: the passport page renders "Generating Passport."
+        // against a null id, and a hard failure left the store empty.
+        console.error('[passport] profile unreadable, serving session shell:', stdErr.message);
+        return NextResponse.json(degradedShell(user.id), { headers: NO_STORE });
       }
       return NextResponse.json(
         { ...stdData, onboarding_completed: false, metadata: {} },
         { headers: NO_STORE }
       );
     }
-    return NextResponse.json({ error: error.message }, { status: 500, headers: NO_STORE });
+    console.error('[passport] profile read failed:', error.message);
+    return NextResponse.json(degradedShell(user.id), { headers: NO_STORE });
   }
 
   // Self-heal rows created before the trigger existed. Nulling the column is
@@ -117,6 +122,30 @@ export async function GET() {
 function looksLikeMissingColumn(message: string): boolean {
   const m = message.toLowerCase();
   return m.includes('metadata') || m.includes('onboarding_completed') || m.includes('column');
+}
+
+/**
+ * What the passport page gets when `user_profiles` cannot be read: every
+ * credential field null/empty, so the UI renders its own zero state
+ * ("Generating Passport.") instead of surfacing a 500 it cannot act on.
+ */
+function degradedShell(userId: string) {
+  return {
+    id: userId,
+    name: '',
+    role: '',
+    country: '',
+    skills: [] as string[],
+    goals: '',
+    passport_id: null,
+    passport_share_slug: null,
+    is_passport_public: false,
+    passport_issued_at: null,
+    onboarding_completed: false,
+    metadata: {} as Record<string, unknown>,
+    account_type: null,
+    degraded: true,
+  };
 }
 
 export async function POST(request: Request) {

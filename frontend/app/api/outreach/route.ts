@@ -105,7 +105,18 @@ export async function GET(request: Request) {
       .limit(MAX_MESSAGES_PER_THREAD);
 
     if (error) {
-      return NextResponse.json({ error: 'Could not load the thread.' }, { status: 500, headers: NO_STORE });
+      // The connection row loaded but its messages did not: show the thread
+      // header with an empty history instead of failing the whole request.
+      console.error('[outreach] thread read failed, serving no messages:', error.message);
+      return NextResponse.json(
+        {
+          connection,
+          messages: [],
+          degraded: true,
+          message: 'Messages are temporarily unavailable. Try again in a moment.',
+        },
+        { headers: NO_STORE }
+      );
     }
 
     return NextResponse.json({ connection, messages: messages ?? [] }, { headers: NO_STORE });
@@ -122,7 +133,15 @@ export async function GET(request: Request) {
     .limit(MAX_THREADS);
 
   if (error) {
-    return NextResponse.json({ error: 'Could not load threads.' }, { status: 500, headers: NO_STORE });
+    console.error('[outreach] thread list read failed, serving an empty list:', error.message);
+    return NextResponse.json(
+      {
+        threads: [],
+        degraded: true,
+        message: 'Your conversations are temporarily unavailable. Try again in a moment.',
+      },
+      { headers: NO_STORE }
+    );
   }
 
   const rows = (connections ?? []) as unknown as ConnectionRow[];

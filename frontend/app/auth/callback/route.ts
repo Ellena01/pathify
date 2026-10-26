@@ -1,30 +1,32 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { accountTypeFromUserMetadata, resolvePostAuthPath } from '@/lib/universe';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 /**
- * Sanitise a post-auth redirect target.
+ * OAuth / magic-link handshake.
  *
- * Only same-origin, single-slash-prefixed paths are allowed. Rejecting `//`
- * and `/\` blocks the protocol-relative bypass (`/\evil.com` normalises to
- * `//evil.com` in most URL parsers), which would otherwise let a crafted
- * `?next=` bounce a freshly-authenticated user off-site.
+ * Two things this route decides that it used to get wrong:
+ *
+ *   1. **which universe** the account belongs to. It redirected to `/dashboard`
+ *      unconditionally, so an organisation completing signup landed on the
+ *      talent feed and only reached `/org/dashboard` after the middleware
+ *      bounced it back out — a visible flash of the wrong product. The profile
+ *      row is read here, with `user_metadata.account_type` (written by signup)
+ *      as the fallback when the row does not exist yet.
+ *   2. **where a crafted `?next=` may go**. `resolvePostAuthPath` rejects
+ *      protocol-relative targets (`//evil.example`, `/\evil.example`) *and*
+ *      any path outside the account's own universe.
+ *
+ * The origin is always ours: `x-forwarded-host` is client-influenced and must
+ * never decide where a user lands.
  */
-function safeNextPath(raw: string | null): string {
-  if (!raw) return '/dashboard';
-  if (!raw.startsWith('/')) return '/dashboard';
-  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/dashboard';
-  // Reject control characters and anything that could re-parse as a new URL.
-  if (/[\u0000-\u001F\u007F]/.test(raw)) return '/dashboard';
-  return raw;
-}
-
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = safeNextPath(searchParams.get('next'));
+  const next = searchParams.get('next');
 
   if (code) {
     const cookieStore = await cookies();
@@ -51,9 +53,30 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      // Redirect strictly against our own origin. `x-forwarded-host` is
-      // client-influenced and must never decide where a user lands.
-      return NextResponse.redirect(`${origin}${next}`);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      let accountType: string | null = null;
+      let onboardingCompleted: boolean | null = null;
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('account_type, onboarding_completed')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profile) {
+          accountType = profile.account_type;
+          onboardingCompleted = Boolean(profile.onboarding_completed);
+        } else {
+          accountType = accountTypeFromUserMetadata(user.user_metadata);
+        }
+      }
+
+      const target = resolvePostAuthPath({ next, accountType, onboardingCompleted });
+      return NextResponse.redirect(`${origin}${target}`, { headers: NO_STORE });
     }
   }
 

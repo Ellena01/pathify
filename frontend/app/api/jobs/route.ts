@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSupabaseServerClient } from '@/utils/supabase/server';
 import { isVisibleListing } from '@/lib/matching';
+import { FALLBACK_CATALOG } from '@/lib/fallback-catalog';
 
 // Server-only env — never expose token to browser
 const APIFY_TOKEN = process.env.APIFY_TOKEN;
@@ -16,65 +17,122 @@ const CATALOG_LIMIT = 200;
  * Read-only by construction: this route never writes. Only `/api/sync`
  * (service_role) may write to `opportunities_cache`.
  *
- * Both read paths apply the same two hygiene rules, in SQL for the cache and
- * in memory for the Apify fallback:
- *   - `is_active = false`   the crawler confirmed the listing is gone
- *   - `verification_status = 'rejected'`   a moderator rejected it
- * Neither used to be filtered, so retired and rejected listings were being
- * served to the public and ranked into the digest.
+ * ## This route never fails
+ *
+ * It answers with an array and status 200 in every state, because the catalog
+ * is the first thing the dashboard and the opportunities page render: a 500 or
+ * an empty array there shows up to the user as "Pathify is broken". The four
+ * rungs it tries, in order:
+ *
+ *   1. `opportunities_cache` with full hygiene filters
+ *      (`is_active`, `verification_status != 'rejected'`)
+ *   2. the same table with only the columns `schema.sql` guarantees — the
+ *      hygiene columns arrive in later migrations, and an unmigrated database
+ *      would otherwise reject the query outright instead of degrading
+ *   3. the live Apify dataset, when a token is configured and reachable
+ *   4. `lib/fallback-catalog.ts` — the seeded registry rows held in code
+ *
+ * Each rung logs why it was skipped, so a degraded response is diagnosable
+ * without a user report. The old route answered 500 from rung 3 whenever the
+ * token was missing or Apify was down, which is exactly the state a demo hits.
  */
+
 function getApifyDatasetUrl(): string | null {
   if (!APIFY_TOKEN) return null;
   return `https://api.apify.com/v2/datasets/${APIFY_DATASET_ID}/items`;
 }
 
+/** Rung 1: the cache as it is meant to be read. */
+async function readCacheFull(): Promise<unknown[] | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('opportunities_cache')
+    .select('*')
+    .eq('is_active', true)
+    .neq('verification_status', 'rejected')
+    .order('discovered_at', { ascending: false })
+    .limit(CATALOG_LIMIT);
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/**
+ * Rung 2: the cache before the hygiene migration.
+ *
+ * Selecting only the columns `schema.sql` declares keeps a database that has
+ * run `schema.sql` but none of the migrations serving a real feed. Ordering by
+ * `discovered_at`, which is also core, rather than by a column that may not
+ * exist yet.
+ */
+async function readCacheCore(): Promise<unknown[] | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('opportunities_cache')
+    .select(
+      'application_url, title, organization, location, opportunity_type, skills_required, verification_status, source_domain, deadline, discovered_at'
+    )
+    .order('discovered_at', { ascending: false })
+    .limit(CATALOG_LIMIT);
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** Rung 3: the live scraper dataset, when there is one to read. */
+async function readApifyDataset(): Promise<unknown[] | null> {
+  const apifyUrl = getApifyDatasetUrl();
+  if (!apifyUrl) return null;
+
+  const response = await fetch(apifyUrl, {
+    headers: { Authorization: `Bearer ${APIFY_TOKEN}` },
+    next: { revalidate: 60 },
+  });
+  if (!response.ok) throw new Error(`Apify responded with status ${response.status}`);
+
+  const data: unknown = await response.json();
+  if (!Array.isArray(data)) return null;
+
+  // Actor output predates the `is_active` / moderation columns, so an absent
+  // value is treated as visible rather than silently emptying the feed.
+  return data.filter(isVisibleListing).slice(0, CATALOG_LIMIT);
+}
+
 export async function GET() {
-  // 1) Preferred: Supabase cache (Scheduled Actor → Dataset → Supabase)
+  const reasons: string[] = [];
+
   if (SUPABASE_URL && SUPABASE_ANON) {
-    try {
-      const supabase = await createSupabaseServerClient();
-      const { data: cached, error } = await supabase
-        .from('opportunities_cache')
-        .select('*')
-        .eq('is_active', true)
-        .neq('verification_status', 'rejected')
-        .order('discovered_at', { ascending: false })
-        .limit(CATALOG_LIMIT);
-      if (!error && cached && cached.length > 0) {
-        return NextResponse.json(cached);
+    for (const [label, read] of [
+      ['cache(full)', readCacheFull],
+      ['cache(core)', readCacheCore],
+    ] as const) {
+      try {
+        const rows = await read();
+        if (rows && rows.length > 0) return NextResponse.json(rows);
+        reasons.push(`${label}: empty`);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.warn(`[jobs] ${label} failed, trying the next source:`, detail);
+        reasons.push(`${label}: ${detail}`);
       }
-      // If the cache is empty (or the hygiene columns are missing on an
-      // unmigrated database) fall through to the Apify dataset.
-      if (error) console.warn('Supabase cache read warning:', error.message);
-    } catch (e: any) {
-      console.warn('Supabase cache exception, falling back to Apify:', e?.message);
     }
+  } else {
+    reasons.push('cache: NEXT_PUBLIC_SUPABASE_URL/ANON_KEY not set');
   }
 
-  // 2) Fallback: Live Apify Dataset (server-only token)
   try {
-    const apifyUrl = getApifyDatasetUrl();
-    if (!apifyUrl) {
-      return NextResponse.json(
-        { error: 'APIFY_TOKEN not configured. Set APIFY_TOKEN and APIFY_DATASET_ID in .env.local (server-only).' },
-        { status: 500 }
-      );
-    }
-    const response = await fetch(apifyUrl, { headers: { Authorization: `Bearer ${APIFY_TOKEN}` }, next: { revalidate: 60 } });
-    if (!response.ok) throw new Error(`Apify responded with status ${response.status}`);
-    const data: unknown = await response.json();
-    // Note: cache write removed — only /api/sync (service_role) may write to
-    // opportunities_cache (RLS). Use the sync cron.
-
-    // The dataset is raw scraper output, so hygiene has to be applied here.
-    // Actor output predates the `is_active` / moderation columns, so an absent
-    // value is treated as visible rather than silently emptying the feed.
-    if (Array.isArray(data)) {
-      return NextResponse.json(data.filter(isVisibleListing).slice(0, CATALOG_LIMIT));
-    }
-    return NextResponse.json(data);
-  } catch (error: any) {
-    console.error('API Route Error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch from Apify' }, { status: 500 });
+    const rows = await readApifyDataset();
+    if (rows && rows.length > 0) return NextResponse.json(rows);
+    reasons.push(rows ? 'apify: empty' : 'apify: APIFY_TOKEN not configured');
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn('[jobs] apify dataset failed, serving the built-in catalog:', detail);
+    reasons.push(`apify: ${detail}`);
   }
+
+  // Every live source is gone. Ship the seeded registry rows rather than an
+  // empty feed — the catalog is what the dashboard, the opportunities page and
+  // the org shortlist all read.
+  console.warn('[jobs] serving lib/fallback-catalog.ts:', reasons.join(' | '));
+  return NextResponse.json(FALLBACK_CATALOG.slice(0, CATALOG_LIMIT));
 }

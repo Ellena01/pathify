@@ -254,11 +254,25 @@ export async function POST(request: Request) {
     const matches = opportunities
       .filter((opp) => {
         const seenAt = opp.first_seen_at
-          ? new Date(opp.first_seen_at).getTime()
+          ? Date.parse(opp.first_seen_at)
           : new Date(opp.discovered_at ?? 0).getTime();
         return seenAt > lastAt;
       })
-      .map((opp) => ({ opp, match: scoreFor(opp, user) }))
+      .map((opp) => {
+        // One malformed catalog row must not abort the whole digest run: it is
+        // skipped, and the remaining listings still send.
+        try {
+          return { opp, match: scoreFor(opp, user) };
+        } catch (error) {
+          console.warn(
+            '[alerts] skipping unscoreable opportunity:',
+            opp.application_url,
+            error instanceof Error ? error.message : error
+          );
+          return null;
+        }
+      })
+      .filter((entry): entry is { opp: Opportunity; match: MatchResult } => entry !== null)
       .filter(({ match }) => match.score >= threshold)
       .sort((a, b) => b.match.score - a.match.score)
       .slice(0, DIGEST_SIZE);

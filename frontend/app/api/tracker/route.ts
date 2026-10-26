@@ -37,7 +37,19 @@ export async function GET() {
     .order('updated_at', { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: 'Could not load tracker' }, { status: 500, headers: NO_STORE });
+    // A read failure degrades to an honest empty tracker, not a 500: the page
+    // already has a zero state, and "Could not load tracker" rendered as a
+    // hard failure when the table was merely unreachable.
+    console.error('[tracker] read failed, serving an empty list:', error.message);
+    return NextResponse.json(
+      {
+        items: [],
+        count: 0,
+        degraded: true,
+        message: 'Your tracked items are temporarily unavailable. Try again in a moment.',
+      },
+      { headers: NO_STORE }
+    );
   }
 
   const items: TrackedOpportunity[] = (data ?? [])

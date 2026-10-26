@@ -110,7 +110,7 @@ export default function PathifyDashboard() {
   }, []);
 
   const strongMatchCount = useMemo(
-    () => matches.filter((m) => m.match.score >= 60).length,
+    () => matches.filter((m) => (m.match?.score ?? 0) >= 60).length,
     [matches]
   );
 
@@ -124,7 +124,7 @@ export default function PathifyDashboard() {
         String(opp.organization ?? '').toLowerCase().includes(q) ||
         String(opp.location ?? '').toLowerCase().includes(q) ||
         String(opp.source_domain ?? '').toLowerCase().includes(q) ||
-        opp.match.matched.some((s) => s.toLowerCase().includes(q))
+        (opp.match?.matched ?? []).some((s) => s.toLowerCase().includes(q))
       );
     });
   }, [matches, searchTerm, selectedType]);

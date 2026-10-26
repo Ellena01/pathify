@@ -61,6 +61,49 @@ export interface UsePrecomputedMatches {
   isRunning: boolean;
 }
 
+/**
+ * The single ingestion point for `/api/match`.
+ *
+ * The route is now deliberately fallible: a degraded or partially-computed
+ * response is a normal state, and a row can reach here without a `match` block
+ * (or with a `score` that is not a number). Every consumer reads `row.match.score`
+ * directly, so a loose row would take the whole page down with it. Normalising
+ * here turns "one odd row" into an unscored listing, which already renders.
+ */
+function normalizeMatches(raw: unknown): MatchedOpportunity[] {
+  if (!Array.isArray(raw)) return [];
+  const rows: MatchedOpportunity[] = [];
+
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const row = entry as Record<string, unknown>;
+    if (typeof row.application_url !== 'string' || !row.application_url) continue;
+
+    const rawMatch = row.match && typeof row.match === 'object' ? (row.match as Record<string, unknown>) : {};
+    const score = typeof rawMatch.score === 'number' && Number.isFinite(rawMatch.score) ? rawMatch.score : 0;
+    const list = (value: unknown): string[] =>
+      Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === 'string' && item.length > 0)
+        : [];
+
+    rows.push({
+      ...(row as Record<string, unknown>),
+      match: {
+        score,
+        matched: list(rawMatch.matched),
+        gap: list(rawMatch.gap),
+        breakdown:
+          rawMatch.breakdown && typeof rawMatch.breakdown === 'object'
+            ? (rawMatch.breakdown as MatchBreakdown)
+            : ({} as MatchBreakdown),
+        explanation: typeof rawMatch.explanation === 'string' ? rawMatch.explanation : '',
+      },
+    } as MatchedOpportunity);
+  }
+
+  return rows;
+}
+
 export function usePrecomputedMatches(limit = 60): UsePrecomputedMatches {
   const [matches, setMatches] = useState<MatchedOpportunity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -99,7 +142,7 @@ export function usePrecomputedMatches(limit = 60): UsePrecomputedMatches {
         setError(String(data.error));
         return;
       }
-      setMatches(Array.isArray(data.matches) ? data.matches : []);
+      setMatches(normalizeMatches(data.matches));
       setIsStale(Boolean(data.stale));
       setError('');
     } catch (e) {
@@ -130,7 +173,7 @@ export function usePrecomputedMatches(limit = 60): UsePrecomputedMatches {
           setError(String(data.error));
           return;
         }
-        setMatches(Array.isArray(data.matches) ? data.matches : []);
+        setMatches(normalizeMatches(data.matches));
         setIsStale(Boolean(data.stale));
         setError('');
       } catch (e) {

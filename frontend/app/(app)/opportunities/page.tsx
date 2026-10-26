@@ -306,7 +306,7 @@ function OpportunitiesInner() {
     } catch { /* rollback */ setSavedJobs(prev => isSaved ? [...prev, jobKey] : prev.filter(k => k !== jobKey)); }
   };
 
-  const strongMatches = matches.filter((m) => m.match.score >= 60).length;
+  const strongMatches = matches.filter((m) => (m.match?.score ?? 0) >= 60).length;
   const busy = isLoading || isLoadingMatches;
   const needsRun = !busy && matches.length === 0 && !isStale && scope === 'for-you';
 
@@ -534,7 +534,7 @@ function OpportunitiesInner() {
         <aside className="w-full lg:w-44 shrink-0 flex flex-col items-center">
           <div className="sticky top-24 w-full">
             <VerticalFitSlider
-              score={matches.length > 0 ? matches[0].match.score : 0}
+              score={matches[0]?.match?.score ?? 0}
               minScore={minMatch}
               onMinScoreChange={(newMin) => setMinMatch(newMin)}
             />

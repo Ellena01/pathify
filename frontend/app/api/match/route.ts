@@ -178,6 +178,48 @@ interface ComputeResult {
   plan: string[];
   best: { title: string; organization: string; score: number; explanation: string } | null;
   results: Array<Record<string, unknown>>;
+  /**
+   * Full catalog rows plus their `match` payload — the exact shape `GET`
+   * serves. Present so a degraded GET (one whose persisted table is
+   * unreachable) can answer from a live compute instead of a second read.
+   */
+  matches: Array<Record<string, unknown>>;
+  /**
+   * False when `user_opportunity_matches` could not be written: the service
+   * role key is absent, or the table is unreachable. The score above is still
+   * valid and still returned — a failed write used to turn a successful
+   * compute into a 500 for the whole request.
+   */
+  persisted: boolean;
+}
+
+/**
+ * The profile, read once.
+ *
+ * A missing or unreadable row is not an error the caller should see: with no
+ * profile the ladder still runs (it starts at geography when there are no
+ * skills), so the user gets a broadened but non-empty feed rather than a 404.
+ */
+async function readProfile(supabase: SessionClient, userId: string) {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('name, country, role, skills, goals, metadata, last_matched_at')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[match] profile read failed, scoring with an empty profile:', error.message);
+  }
+
+  return (data ?? {
+    name: null,
+    country: null,
+    role: null,
+    skills: null,
+    goals: null,
+    metadata: null,
+    last_matched_at: null,
+  }) as ProfileRow & { last_matched_at?: string | null };
 }
 
 /** The one code path that scores and persists. Used by POST and by GET's heal. */
@@ -185,15 +227,34 @@ async function computeMatches(
   supabase: SessionClient,
   userId: string,
   profile: ProfileRow & { last_matched_at?: string | null }
-): Promise<{ ok: true; data: ComputeResult } | { ok: false; status: number; error: string }> {
+): Promise<
+  | { ok: true; data: ComputeResult; scoringFailures: number }
+  | { ok: false; status: number; error: string }
+> {
   const subject = buildSubject(profile);
   const plan = planCandidateLadder(subject);
   const { rows, executed } = await collectCandidates(supabase, plan);
 
-  const scored: ScoredCandidate[] = rows.map((row) => ({
-    row,
-    result: calculateMatch(row as unknown as Record<string, unknown>, subject),
-  }));
+  // One malformed row must not take the run down with it: `calculateMatch`
+  // reads `skills_required`, `location` and the metadata experience array, and
+  // any of them can arrive in a shape the scraper never intended. A row that
+  // throws is dropped and counted, not propagated to the route.
+  const scored: ScoredCandidate[] = [];
+  let scoringFailures = 0;
+  for (const row of rows) {
+    try {
+      scored.push({
+        row,
+        result: calculateMatch(row as unknown as Record<string, unknown>, subject),
+      });
+    } catch (error) {
+      scoringFailures += 1;
+      console.warn(
+        '[match] skipped a candidate that could not be scored:',
+        error instanceof Error ? error.message : error
+      );
+    }
+  }
 
   // Sort first, then select. `Array.prototype.sort` is stable, so equal scores
   // keep ladder order — an exact-skill candidate beats a geography candidate
@@ -214,6 +275,7 @@ async function computeMatches(
     }
   );
 
+  let persisted = true;
   if (top.length > 0) {
     const payload: MatchWrite[] = top.map(({ row }) => ({
       user_id: userId,
@@ -230,9 +292,14 @@ async function computeMatches(
     // session client would therefore fail RLS here, so escalate to service
     // role. The user was verified by the caller and `user_id` is taken from
     // their session, never from the request body.
+    //
+    // A failed write is reported, not fatal: without `SUPABASE_SERVICE_ROLE_KEY`
+    // (the common local/demo state) this used to answer 500 for a compute that
+    // had already succeeded, which is how a full dashboard rendered as an error.
     const write = await writeMatches(payload);
     if (!write.ok) {
-      return { ok: false, status: 500, error: `Matched but could not persist: ${write.detail}` };
+      persisted = false;
+      console.warn('[match] scores computed but could not be persisted:', write.detail);
     }
   }
 
@@ -251,6 +318,7 @@ async function computeMatches(
       // What actually ran — a truncated plan is the honest answer when the
       // ladder stopped early at the candidate target.
       plan: executed,
+      persisted,
       best: best
         ? {
             title: best.row.title,
@@ -273,7 +341,20 @@ async function computeMatches(
         reasons: row.result.reasons,
         explanation: row.result.explanation,
       })),
+      // The GET shape, built from the same `top` so the degraded GET path and
+      // the persisted path can never disagree about what a match looks like.
+      matches: top.map(({ row }) => ({
+        ...row.row,
+        match: {
+          score: row.result.score,
+          matched: row.result.matched,
+          gap: row.result.gap,
+          breakdown: row.result.breakdown,
+          explanation: row.result.explanation,
+        },
+      })),
     },
+    scoringFailures,
   };
 }
 
@@ -313,106 +394,210 @@ async function readMatches(
   return { matches };
 }
 
-export async function GET(request: Request) {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+/** Shape of one row of `ComputeResult.matches`, for the filters below. */
+function scoreOf(row: Record<string, unknown>): number {
+  const match = row.match as { score?: unknown } | undefined;
+  const score = typeof match?.score === 'number' ? match.score : NaN;
+  return Number.isFinite(score) ? score : 0;
+}
 
-  if (!user) {
+/** Slice a freshly-computed set down to what the caller asked for. */
+function windowMatches(rows: Array<Record<string, unknown>>, limit: number, minScore: number) {
+  return rows.filter((row) => scoreOf(row) >= minScore).slice(0, limit);
+}
+
+export async function GET(request: Request) {
+  let supabase: SessionClient;
+  let userId: string;
+
+  try {
+    supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
+    }
+    userId = user.id;
+  } catch (error) {
+    // The auth layer itself is unavailable (missing env, unreadable cookie).
+    // 401 rather than 500: the client already treats "not signed in" as an
+    // empty, non-error state, whereas 500 rendered as "Could not load matches".
+    console.warn('[match] auth unavailable:', error instanceof Error ? error.message : error);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
   }
 
-  const url = new URL(request.url);
-  const limitParam = Number.parseInt(url.searchParams.get('limit') ?? '', 10);
-  const limit = Math.min(Math.max(Number.isFinite(limitParam) ? limitParam : 20, 1), PERSIST_LIMIT);
-  const minScoreParam = Number.parseInt(url.searchParams.get('minScore') ?? '', 10);
-  const minScore = Number.isFinite(minScoreParam) ? Math.min(Math.max(minScoreParam, 0), 100) : 0;
+  try {
+    const url = new URL(request.url);
+    const limitParam = Number.parseInt(url.searchParams.get('limit') ?? '', 10);
+    const limit = Math.min(Math.max(Number.isFinite(limitParam) ? limitParam : 20, 1), PERSIST_LIMIT);
+    const minScoreParam = Number.parseInt(url.searchParams.get('minScore') ?? '', 10);
+    const minScore = Number.isFinite(minScoreParam) ? Math.min(Math.max(minScoreParam, 0), 100) : 0;
 
-  const initial = await readMatches(supabase, user.id, limit, minScore);
+    const initial = await readMatches(supabase, userId, limit, minScore);
 
-  if ('error' in initial && initial.error) {
-    // A missing migration should degrade to "no matches yet", not to a 500.
-    if (initial.error.code === '42P01' || /relation .* does not exist/i.test(initial.error.message)) {
+    if ('error' in initial && initial.error) {
+      // A missing migration should degrade to "no matches yet", not to a 500.
+      if (initial.error.code === '42P01' || /relation .* does not exist/i.test(initial.error.message)) {
+        return NextResponse.json(
+          { matches: [], stale: true, message: 'Matching is not initialised yet. Run the latest migration.' },
+          { headers: NO_STORE }
+        );
+      }
+
+      // Any other read failure: the persisted table is unreachable but
+      // `opportunities_cache` may not be. Score live from the cache so the
+      // dashboard renders cards rather than a 500 — which is what this path
+      // used to answer, and the hook surfaced as a hard error.
+      console.warn('[match] persisted matches unreadable, scoring live:', initial.error.message);
+      const profile = await readProfile(supabase, userId);
+      const computed = await computeMatches(supabase, userId, profile);
+      const rows = computed.ok ? windowMatches(computed.data.matches, limit, minScore) : [];
       return NextResponse.json(
-        { matches: [], stale: true, message: 'Matching is not initialised yet. Run the latest migration.' },
+        {
+          matches: rows,
+          count: rows.length,
+          selfHealed: computed.ok,
+          minResults: rows.length > 0 && rows.length < MIN_RESULTS_BEFORE_BROADENING,
+          degraded: true,
+          message: 'Showing live scores; stored matches are temporarily unavailable.',
+        },
         { headers: NO_STORE }
       );
     }
-    return NextResponse.json({ error: 'Could not load matches' }, { status: 500, headers: NO_STORE });
-  }
 
-  let matches = initial.matches ?? [];
-  let selfHealed = false;
+    let matches = initial.matches ?? [];
+    let selfHealed = false;
 
-  // Empty is never a terminal state. Either the profile changed (a skill was
-  // added) or the run never happened — both are fixed by computing once here,
-  // rate-limited so a cold dashboard cannot turn into a compute loop.
-  if (matches.length === 0) {
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('name, country, role, skills, goals, metadata, last_matched_at')
-      .eq('id', user.id)
-      .maybeSingle();
+    // Empty is never a terminal state. Either the profile changed (a skill was
+    // added) or the run never happened — both are fixed by computing once here,
+    // rate-limited so a cold dashboard cannot turn into a compute loop.
+    if (matches.length === 0) {
+      const profile = await readProfile(supabase, userId);
 
-    const lastMatched = profile?.last_matched_at ? Date.parse(profile.last_matched_at) : NaN;
-    const stale = !Number.isFinite(lastMatched) || Date.now() - lastMatched > SELF_HEAL_COOLDOWN_MS;
+      const lastMatched = profile.last_matched_at ? Date.parse(profile.last_matched_at) : NaN;
+      const stale = !Number.isFinite(lastMatched) || Date.now() - lastMatched > SELF_HEAL_COOLDOWN_MS;
 
-    if (profile && stale) {
-      const computed = await computeMatches(supabase, user.id, profile);
-      if (computed.ok) {
-        const healed = await readMatches(supabase, user.id, limit, minScore);
-        if (!('error' in healed && healed.error)) {
-          matches = healed.matches ?? [];
-          selfHealed = true;
+      if (stale) {
+        const computed = await computeMatches(supabase, userId, profile);
+        if (computed.ok) {
+          const healed = await readMatches(supabase, userId, limit, minScore);
+          if (!('error' in healed && healed.error)) {
+            matches = healed.matches ?? [];
+            selfHealed = true;
+          }
+          if (matches.length === 0) {
+            // The write is best-effort (no service role key is a normal state),
+            // so a compute that could not persist still has rows to serve.
+            matches = windowMatches(computed.data.matches, limit, minScore);
+            selfHealed = true;
+          }
         }
       }
     }
-  }
 
-  return NextResponse.json(
-    {
-      matches,
-      count: matches.length,
-      selfHealed,
-      minResults: matches.length > 0 && matches.length < MIN_RESULTS_BEFORE_BROADENING,
-    },
-    { headers: NO_STORE }
-  );
+    return NextResponse.json(
+      {
+        matches,
+        count: matches.length,
+        selfHealed,
+        minResults: matches.length > 0 && matches.length < MIN_RESULTS_BEFORE_BROADENING,
+      },
+      { headers: NO_STORE }
+    );
+  } catch (error) {
+    // Nothing in this route may surface as a 500: an empty-but-honest payload
+    // lets the dashboard fall back to the catalog, a 500 renders as an error.
+    console.error('[match] GET failed, serving an empty result:', error);
+    return NextResponse.json(
+      {
+        matches: [],
+        count: 0,
+        selfHealed: false,
+        minResults: false,
+        degraded: true,
+        message: 'Matches are temporarily unavailable. Try again in a moment.',
+      },
+      { headers: NO_STORE }
+    );
+  }
 }
 
-export async function POST(request: Request) {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+/** The answer a client gets when the run itself failed: 200, never 500. */
+const DEGRADED_EMPTY = {
+  matched: 0,
+  candidates: 0,
+  plan: [] as string[],
+  best: null,
+  results: [] as Array<Record<string, unknown>>,
+  matches: [] as Array<Record<string, unknown>>,
+  persisted: false,
+  profileHasSkills: false,
+};
 
-  if (!user) {
+export async function POST(request: Request) {
+  let supabase: SessionClient;
+  let userId: string;
+
+  try {
+    supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
+    }
+    userId = user.id;
+  } catch (error) {
+    console.warn('[match] auth unavailable:', error instanceof Error ? error.message : error);
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from('user_profiles')
-    .select('name, country, role, skills, goals, metadata')
-    .eq('id', user.id)
-    .single();
+  try {
+    // A missing profile row used to answer 404 here, which left onboarding
+    // unable to seed a single match. The ladder runs on an empty profile — it
+    // starts at geography when there are no skills — so the user still gets a
+    // broadened feed, and `profileHasSkills: false` tells the client to nudge.
+    const profile = await readProfile(supabase, userId);
+    const computed = await computeMatches(supabase, userId, profile);
 
-  if (profileError || !profile) {
-    return NextResponse.json({ error: 'Profile not found' }, { status: 404, headers: NO_STORE });
+    if (!computed.ok) {
+      return NextResponse.json(
+        { ...DEGRADED_EMPTY, degraded: true, message: computed.error },
+        { headers: NO_STORE }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        ...computed.data,
+        // Rows the engine refused to score are reported rather than hidden:
+        // a non-zero count means the catalog has a malformed record.
+        scoringFailures: computed.scoringFailures,
+        // Surfaced by onboarding so an empty-skills profile can be nudged rather
+        // than silently under-served.
+        profileHasSkills: Array.isArray(profile.skills) && profile.skills.length > 0,
+        degraded: !computed.data.persisted,
+        ...(computed.data.persisted
+          ? {}
+          : {
+              message:
+                'Scores are shown live but could not be stored (service role key not configured); they are recomputed on your next visit.',
+            }),
+      },
+      { headers: NO_STORE }
+    );
+  } catch (error) {
+    // The compute threw. An honest, empty, 200 payload keeps the dashboard on
+    // the cached catalog instead of rendering a failure to the user.
+    console.error('[match] POST failed, serving an empty result:', error);
+    return NextResponse.json(
+      {
+        ...DEGRADED_EMPTY,
+        degraded: true,
+        message: 'The match run could not complete. Your feed is using the cached catalog.',
+      },
+      { headers: NO_STORE }
+    );
   }
-
-  const computed = await computeMatches(supabase, user.id, profile);
-  if (!computed.ok) {
-    return NextResponse.json({ error: computed.error }, { status: computed.status, headers: NO_STORE });
-  }
-
-  return NextResponse.json(
-    {
-      ...computed.data,
-      // Surfaced by onboarding so an empty-skills profile can be nudged rather
-      // than silently under-served.
-      profileHasSkills: Array.isArray(profile.skills) && profile.skills.length > 0,
-    },
-    { headers: NO_STORE }
-  );
 }

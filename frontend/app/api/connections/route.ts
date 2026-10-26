@@ -72,7 +72,19 @@ export async function GET(request: Request) {
     .limit(100);
 
   if (error) {
-    return NextResponse.json({ error: 'Could not load connections' }, { status: 500, headers: NO_STORE });
+    // Reads degrade to an empty list rather than a 500: the workbench already
+    // renders a zero state, and an unreachable table is a reason for an empty
+    // feed — not for showing the user a failure they cannot act on.
+    console.error('[connections] read failed, serving an empty list:', error.message);
+    return NextResponse.json(
+      {
+        connections: [],
+        directory: [],
+        degraded: true,
+        message: 'Connections are temporarily unavailable. Try again in a moment.',
+      },
+      { headers: NO_STORE }
+    );
   }
 
   const connections = data ?? [];

@@ -103,7 +103,22 @@ export async function POST(request: Request) {
 
   // Batched upsert — a single statement, not one round-trip per record.
   // `application_url` is the primary key, so the DB is the final dedupe backstop.
-  const { error } = await supabase.from('opportunities_cache').upsert(rows, { onConflict: 'application_url' });
+  let { error } = await supabase.from('opportunities_cache').upsert(rows, { onConflict: 'application_url' });
+  if (error && (error.message.includes('column') || error.code === 'PGRST204')) {
+    // Graceful degradation for databases that predate 20260927_sync_ingest_columns.sql.
+    // Strip extended columns (source_platform, description, discovery_query) and retry.
+    console.warn('[sync] Full schema upsert failed, retrying with base schema.sql columns:', error.message);
+    const baseRows = rows.map((r: any) => {
+      const copy = { ...r };
+      delete copy.source_platform;
+      delete copy.description;
+      delete copy.discovery_query;
+      return copy;
+    });
+    const retry = await supabase.from('opportunities_cache').upsert(baseRows, { onConflict: 'application_url' });
+    error = retry.error;
+  }
+
   if (error) {
     return NextResponse.json({ error: 'Supabase upsert failed', detail: error.message }, { status: 500 });
   }

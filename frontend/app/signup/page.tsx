@@ -46,42 +46,54 @@ export default function SignupPage() {
     setErrorMsg(null);
     setInfoMsg(null);
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        // `account_type` is read by `public.handle_new_user()`, which validates
-        // it against the same vocabulary the DB check uses and falls back to
-        // 'individual'. Never send `role` here: that column holds the job
-        // title, and writing 'individual' into it would arrive as the user's
-        // profession.
-        data: {
-          name,
-          country,
-          account_type: role,
-          ...(role === 'organization' ? { org_name: name } : {}),
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            country,
+            account_type: role,
+            ...(role === 'organization' ? { org_name: name } : {}),
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+      });
 
-    setLoading(false);
-    if (error) {
-      let msg = error.message;
-      if (msg.includes('User already registered')) msg = 'An account with this email exists. Try signing in.';
-      else if (msg.toLowerCase().includes('rate limit') || msg.includes('over_email')) msg = 'Too many attempts — please wait 10–15 minutes or try a different email. If this persists, contact support.';
-      else if (msg.includes('Email not confirmed')) msg = 'Please confirm your email first — check your inbox.';
-      setErrorMsg(msg);
+      setLoading(false);
+      if (error) {
+        let msg = error.message;
+        const lowerMsg = msg.toLowerCase();
+        if (lowerMsg.includes('failed to fetch') || lowerMsg.includes('network') || lowerMsg.includes('fetch failed')) {
+          msg = 'Unable to reach the registration service. Please check your connection and try again.';
+        } else if (msg.includes('User already registered')) {
+          msg = 'An account with this email already exists. Try signing in.';
+        } else if (lowerMsg.includes('rate limit') || msg.includes('over_email')) {
+          msg = 'Too many attempts — please wait a few minutes or try a different email address.';
+        } else if (msg.includes('Email not confirmed')) {
+          msg = 'Please confirm your email first — check your inbox.';
+        }
+        setErrorMsg(msg);
+        return;
+      }
+
+      if (data.session) {
+        router.push('/onboarding');
+        router.refresh();
+        return;
+      }
+      setInfoMsg('Account created — you can now sign in directly (email confirmation is off for this project). Go to Sign in.');
+    } catch (err: unknown) {
+      setLoading(false);
+      const errStr = err instanceof Error ? err.message : String(err);
+      if (errStr.toLowerCase().includes('fetch') || errStr.toLowerCase().includes('network')) {
+        setErrorMsg('Unable to connect to the authentication service. Please check your network connection.');
+      } else {
+        setErrorMsg('Account registration could not be completed right now. Please try again.');
+      }
       return;
     }
-    // If email confirmations disabled, Supabase returns a session immediately — route to onboarding
-    if (data.session) {
-      router.push('/onboarding');
-      router.refresh();
-      return;
-    }
-    // Otherwise show confirmation hint (when enabled)
-    setInfoMsg('Account created — you can now sign in directly (email confirmation is off for this project). Go to Sign in.');
   };
 
   return (

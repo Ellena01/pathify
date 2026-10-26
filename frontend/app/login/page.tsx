@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
-import { homeFor } from '@/lib/universe';
+import { accountTypeFromUserMetadata, resolvePostAuthPath } from '@/lib/universe';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,27 +19,49 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setErrorMsg(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      // Friendlier mapping
-      let msg = error.message;
-      if (msg.includes('Email not confirmed')) msg = 'Please confirm your email first — check your inbox for the link from Pathify.';
-      else if (msg.includes('Invalid login')) msg = 'We couldn’t sign you in. Check your email and password.';
-      setErrorMsg(msg);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) {
+        let msg = error.message;
+        const lowerMsg = msg.toLowerCase();
+        if (lowerMsg.includes('failed to fetch') || lowerMsg.includes('network') || lowerMsg.includes('fetch failed')) {
+          msg = 'Unable to reach the authentication service. Please check your internet connection or try again shortly.';
+        } else if (msg.includes('Email not confirmed')) {
+          msg = 'Please confirm your email first — check your inbox for the link from Pathify.';
+        } else if (msg.includes('Invalid login') || lowerMsg.includes('invalid credentials')) {
+          msg = 'We couldn’t sign you in. Please check your email and password.';
+        } else if (lowerMsg.includes('rate limit') || lowerMsg.includes('too many requests')) {
+          msg = 'Too many sign-in attempts. Please wait a few minutes before trying again.';
+        }
+        setErrorMsg(msg);
+        return;
+      }
+    } catch (err: unknown) {
+      setLoading(false);
+      const errStr = err instanceof Error ? err.message : String(err);
+      if (errStr.toLowerCase().includes('fetch') || errStr.toLowerCase().includes('network')) {
+        setErrorMsg('Unable to connect to the authentication server. Please check your network connection.');
+      } else {
+        setErrorMsg('Your sign-in could not be completed right now. Please try again.');
+      }
       return;
     }
 
     // Route by universe. An organization account sent to /dashboard would be
     // bounced straight back by the middleware, which is a wasted round trip
-    // the user experiences as a flicker.
+    // the user experiences as a flicker — so the decision is made here, once,
+    // from the profile row.
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Where the middleware parked them before bouncing to /login. Only a
-    // same-origin absolute path is honoured: `//evil.example` is protocol-
-    // relative and would be an open redirect.
+    // Where the middleware parked them before bouncing to /login. Sanitised
+    // and universe-checked by `resolvePostAuthPath`: `//evil.example` is
+    // protocol-relative (open redirect) and `/org/talent` is not a talent
+    // account's page even though it is a valid path.
     const rawNext = new URLSearchParams(window.location.search).get('next');
-    const next = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
+
+    let accountType: string | null = null;
+    let onboardingCompleted: boolean | null = null;
 
     if (user) {
       const { data: profile } = await supabase
@@ -49,19 +71,23 @@ export default function LoginPage() {
         .maybeSingle();
 
       if (profile) {
-        if (!profile.onboarding_completed) {
-          // Onboarding owns the post-setup redirect; `next` is honoured after.
-          router.push('/onboarding');
-          router.refresh();
-          return;
-        }
-        router.push(next ?? homeFor(profile.account_type));
-        router.refresh();
-        return;
+        accountType = profile.account_type;
+        onboardingCompleted = Boolean(profile.onboarding_completed);
+      } else {
+        // Profile unreadable (migration not applied, or a transient failure).
+        // `user_metadata.account_type` still records which universe this
+        // account signed up as, so an organisation never lands on /dashboard.
+        accountType = accountTypeFromUserMetadata(user.user_metadata);
       }
     }
 
-    router.push(next ?? '/dashboard');
+    router.push(
+      resolvePostAuthPath({
+        next: rawNext,
+        accountType,
+        onboardingCompleted,
+      })
+    );
     router.refresh();
   };
 

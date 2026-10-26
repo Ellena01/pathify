@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { sanitizeExternalUrl } from '@/lib/security';
 import { buildSubject, hasMatchableProfile, type ProfileRow } from '@/lib/profile-subject';
 import { calculateMatch, matchResultFromStored, type MatchResult } from '@/lib/matching';
+import { FALLBACK_CATALOG } from '@/lib/fallback-catalog';
 
 /**
  * GET /api/opportunities/[id] — one opportunity, by primary key.
@@ -101,6 +102,9 @@ export async function GET(
       : Promise.resolve({ data: null, error: null }),
   ]);
 
+  let opportunity = opportunityResult.data as Record<string, unknown> | null;
+  let fromFallbackCatalog = false;
+
   if (opportunityResult.error) {
     const message = opportunityResult.error.message;
     // An unmigrated database has no `is_active`. Say so precisely rather than
@@ -114,42 +118,72 @@ export async function GET(
         { status: 503, headers: NO_STORE }
       );
     }
-    return NextResponse.json({ error: 'Could not load opportunity' }, { status: 500, headers: NO_STORE });
+
+    // The query failed for some other reason (table unreachable, RLS, a
+    // transient outage). Retry once without the hygiene filters — those two
+    // columns arrive in later migrations and are the most likely cause — and
+    // then fall back to the built-in catalog so a detail link opened during an
+    // outage still renders a real listing instead of a 500.
+    const retry = await supabase
+      .from('opportunities_cache')
+      .select(OPPORTUNITY_COLUMNS)
+      .eq('application_url', applicationUrl)
+      .maybeSingle();
+
+    if (retry.data) {
+      opportunity = retry.data as Record<string, unknown>;
+    } else {
+      const fallback = FALLBACK_CATALOG.find((row) => row.application_url === applicationUrl);
+      if (fallback) {
+        opportunity = fallback as unknown as Record<string, unknown>;
+        fromFallbackCatalog = true;
+      } else {
+        console.error('[opportunity] read failed and no fallback row:', message);
+        return NextResponse.json({ error: 'Opportunity not found' }, { status: 404, headers: NO_STORE });
+      }
+    }
   }
 
-  if (!opportunityResult.data) {
+  if (!opportunity) {
     // Either it never existed, or it was retired or rejected. All three are
     // "not available" to a visitor, and distinguishing them would leak the
     // moderation queue.
     return NextResponse.json({ error: 'Opportunity not found' }, { status: 404, headers: NO_STORE });
   }
 
-  const opportunity = opportunityResult.data;
-
   // --- Match -------------------------------------------------------------
+  // Both score paths are defensive: a malformed stored row or a profile with a
+  // surprise shape must not take the detail page down with it. The score is a
+  // nicety here — `match: null` already has a rendering — so it degrades.
   let match: MatchResult | null = null;
   let matchSource: 'persisted' | 'computed' | 'none' = 'none';
 
-  if (matchResult.data) {
-    match = matchResultFromStored(matchResult.data as Record<string, unknown>);
-    matchSource = 'persisted';
-  } else if (user) {
-    // The user has never run a match (or this listing was not in the candidate
-    // set). We can still score it — but only with the ONE engine, and we label
-    // the result so the UI can be honest that it is not from the stored table.
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('country, role, skills, goals, metadata')
-      .eq('id', user.id)
-      .maybeSingle();
+  try {
+    if (matchResult.data) {
+      match = matchResultFromStored(matchResult.data as Record<string, unknown>);
+      matchSource = 'persisted';
+    } else if (user) {
+      // The user has never run a match (or this listing was not in the candidate
+      // set). We can still score it — but only with the ONE engine, and we label
+      // the result so the UI can be honest that it is not from the stored table.
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('country, role, skills, goals, metadata')
+        .eq('id', user.id)
+        .maybeSingle();
 
-    if (profile) {
-      const subject = buildSubject(profile as ProfileRow);
-      if (hasMatchableProfile(subject)) {
-        match = calculateMatch(opportunity as Record<string, unknown>, subject);
-        matchSource = 'computed';
+      if (profile) {
+        const subject = buildSubject(profile as ProfileRow);
+        if (hasMatchableProfile(subject)) {
+          match = calculateMatch(opportunity, subject);
+          matchSource = 'computed';
+        }
       }
     }
+  } catch (error) {
+    console.error('[opportunity] score unavailable, serving match:null:', error);
+    match = null;
+    matchSource = 'none';
   }
 
   return NextResponse.json(
@@ -161,6 +195,7 @@ export async function GET(
         ? { saved: true, id: trackerResult.data.id, stage: trackerResult.data.stage ?? 'wishlist' }
         : { saved: false, id: null, stage: null },
       signedIn: Boolean(user),
+      degraded: fromFallbackCatalog,
     },
     { headers: NO_STORE }
   );
